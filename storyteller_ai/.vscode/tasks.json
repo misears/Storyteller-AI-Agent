@@ -1,0 +1,100 @@
+{
+  // Storyteller AI — VS Code Task Runner
+  // Provides: pytest, linting, and combined pipeline
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Tests",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python",
+      "args": [
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint (flake8)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python",
+      "args": [
+        "-m",
+        "flake8",
+        "storyteller_ai"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint (ruff)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python",
+      "args": [
+        "-m",
+        "ruff",
+        "check",
+        "storyteller_ai"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test + Lint",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python",
+      "args": [
+        "-m",
+        "pytest",
+        "-q",
+        "&&",
+        "${workspaceFolder}/venv/Scripts/python",
+        "-m",
+        "ruff",
+        "check",
+        "storyteller_ai"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Backend (Uvicorn Auto-Reload)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/Scripts/python",
+      "args": [
+        "-m",
+        "uvicorn",
+        "storyteller_ai.backend.main:app",
+        "--reload",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
+

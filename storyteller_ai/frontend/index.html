@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Storyteller AI</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #0f172a; color: #e2e8f0; }
+    .page { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { margin-bottom: 12px; color: #f8fafc; }
+    .card { background: #111827; border: 1px solid #334155; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input[type="text"], textarea { width: 100%; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; padding: 12px; font-size: 14px; }
+    button { background: #2563eb; border: none; border-radius: 9999px; color: white; padding: 12px 20px; cursor: pointer; font-size: 14px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .row { display: grid; gap: 20px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .result { white-space: pre-wrap; background: #0b1120; padding: 16px; border-radius: 14px; border: 1px solid #334155; min-height: 140px; }
+    .doc-list { list-style: none; padding-left: 0; }
+    .doc-list li { margin-bottom: 8px; }
+    .hint { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>Storyteller AI</h1>
+  <div class="card">
+    <h2>Start a session</h2>
+    <div class="row grid-2">
+      <div>
+        <label for="session-mode">Mode</label>
+        <input id="session-mode" type="text" value="group" />
+      </div>
+      <div style="display:flex; align-items:flex-end;">
+        <button id="create-session">Create Session</button>
+      </div>
+    </div>
+    <p class="hint">Use group, solo, or assistant.</p>
+    <div class="result" id="session-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Send message</h2>
+    <label for="session-id">Session ID</label>
+    <input id="session-id" type="text" placeholder="session id" />
+    <label for="user-message">Message</label>
+    <textarea id="user-message" rows="4" placeholder="What happens next?"></textarea>
+    <button id="send-message">Send</button>
+    <div class="result" id="message-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Upload story documents</h2>
+    <input id="pdf-file" type="file" accept="application/pdf" />
+    <button id="upload-pdf">Upload PDF</button>
+    <div class="result" id="upload-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Retrieve reference info</h2>
+    <label for="query-text">Query</label>
+    <textarea id="query-text" rows="3" placeholder="Search the loaded documents"></textarea>
+    <button id="retrieve-docs">Retrieve</button>
+    <div class="result" id="retrieve-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Loaded documents</h2>
+    <ul class="doc-list" id="doc-list"></ul>
+  </div>
+</div>
+<script>
+  const apiBase = window.location.origin;
+
+  async function createSession() {
+    const mode = document.getElementById('session-mode').value;
+    const response = await fetch(`${apiBase}/sessions/create`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode}),
+    });
+    const data = await response.json();
+    document.getElementById('session-result').textContent = JSON.stringify(data, null, 2);
+    document.getElementById('session-id').value = data.session_id;
+    await refreshDocuments();
+  }
+
+  async function sendMessage() {
+    const sessionId = document.getElementById('session-id').value;
+    const message = document.getElementById('user-message').value;
+    const response = await fetch(`${apiBase}/gm/step`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_id: sessionId, message}),
+    });
+    const data = await response.json();
+    document.getElementById('message-result').textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function uploadPdf() {
+    const fileInput = document.getElementById('pdf-file');
+    if (!fileInput.files.length) return;
+    const file = fileInput.files[0];
+    const form = new FormData();
+    form.append('file', file);
+    const response = await fetch(`${apiBase}/documents/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    const data = await response.json();
+    document.getElementById('upload-result').textContent = JSON.stringify(data, null, 2);
+    await refreshDocuments();
+  }
+
+  async function retrieveDocs() {
+    const query = document.getElementById('query-text').value;
+    const response = await fetch(`${apiBase}/documents/retrieve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query}),
+    });
+    const data = await response.json();
+    document.getElementById('retrieve-result').textContent = data.results || 'No relevant matches.';
+  }
+
+  async function refreshDocuments() {
+    const response = await fetch(`${apiBase}/documents/list`);
+    const data = await response.json();
+    const list = document.getElementById('doc-list');
+    list.innerHTML = '';
+    for (const doc of data.documents) {
+      const item = document.createElement('li');
+      item.textContent = `${doc.title} — ${doc.size} chars`;
+      list.appendChild(item);
+    }
+  }
+
+  document.getElementById('create-session').addEventListener('click', createSession);
+  document.getElementById('send-message').addEventListener('click', sendMessage);
+  document.getElementById('upload-pdf').addEventListener('click', uploadPdf);
+  document.getElementById('retrieve-docs').addEventListener('click', retrieveDocs);
+  refreshDocuments();
+</script>
+</body>
+</html>
