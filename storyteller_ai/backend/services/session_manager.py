@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 from ..engines.gm_loop import GMLoop
@@ -8,11 +8,31 @@ class SessionManager:
     def __init__(self):
         self.sessions: Dict[str, dict] = {}
 
-    def create_session(self, mode: str = "group") -> str:
+    def create_session(
+        self,
+        mode: str = "group",
+        title: Optional[str] = "",
+        setting: Optional[str] = "",
+        document_ids: Optional[List[str]] = None,
+    ) -> str:
         session_id = str(uuid4())
+        if document_ids is None:
+            document_ids = []
+
+        loop = GMLoop(mode)
+        loop.orchestrator.state["campaign"] = {
+            "title": title or "",
+            "setting": setting or "",
+            "document_ids": document_ids,
+        }
+
         self.sessions[session_id] = {
             "mode": mode,
-            "gm_loop": GMLoop(mode),
+            "title": title or "",
+            "setting": setting or "",
+            "document_ids": document_ids,
+            "characters": [],
+            "gm_loop": loop,
         }
         return session_id
 

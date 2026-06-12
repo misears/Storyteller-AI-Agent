@@ -3,17 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Storyteller AI</title>
+  <title>Storyteller AI Setup</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #0f172a; color: #e2e8f0; }
     .page { max-width: 960px; margin: 0 auto; padding: 24px; }
-    h1 { margin-bottom: 12px; color: #f8fafc; }
+    h1, h2 { margin-bottom: 12px; color: #f8fafc; }
     .card { background: #111827; border: 1px solid #334155; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
     label { display: block; margin-bottom: 6px; font-weight: 600; }
     input[type="text"], textarea, select { width: 100%; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; padding: 12px; font-size: 14px; }
     button { background: #2563eb; border: none; border-radius: 9999px; color: white; padding: 12px 20px; cursor: pointer; font-size: 14px; transition: background 0.2s ease; }
     button:hover { background: #1d4ed8; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
     .row { display: grid; gap: 20px; }
     .grid-2 { grid-template-columns: 1fr 1fr; }
     .result { white-space: pre-wrap; background: #0b1120; padding: 16px; border-radius: 14px; border: 1px solid #334155; min-height: 140px; }
@@ -23,31 +22,18 @@
     .steps { padding-left: 20px; margin: 0; color: #cbd5e1; }
     .steps li { margin-bottom: 10px; }
     .info { color: #cbd5e1; margin-top: 8px; font-size: 14px; }
-    .important { color: #7dd3fc; }
+    .link-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
   </style>
 </head>
 <body>
 <div class="page">
-  <h1>Storyteller AI</h1>
-  <div class="link-row" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
-    <button onclick="window.location.href='setup.html'">Setup Page</button>
+  <h1>Storyteller AI Setup</h1>
+  <div class="link-row">
+    <button onclick="window.location.href='index.html'">Home</button>
     <button onclick="window.location.href='character_tracker.html'">Character Tracker</button>
   </div>
   <div class="card">
-    <h2>How to use this page</h2>
-    <ol class="steps">
-      <li>Click <strong>Create Game</strong> to start a new story session.</li>
-      <li>Copy the session ID into the <strong>Session ID</strong> field if it is not already filled.</li>
-      <li>Type your next story action or scene and click <strong>Continue Story</strong>.</li>
-      <li>Upload PDFs to teach the AI about characters, locations, or world lore.</li>
-      <li>Ask questions using the retrieve panel to reference uploaded documents.</li>
-    </ol>
-    <div class="info">The page is arranged in order: game setup, story continuation, document upload, then document retrieval.</div>
-    <div class="hint">Tip: Use a setup prompt like <span class="important">"The heroes arrive at a ruined castle and hear footsteps in the dark hallway."</span></div>
-  </div>
-
-  <div class="card">
-    <h2>Step 1: Create a game</h2>
+    <h2>Session setup</h2>
     <div class="row grid-2">
       <div>
         <label for="session-mode">Mode</label>
@@ -77,47 +63,17 @@
         <button id="create-session">Create Game</button>
       </div>
     </div>
-    <label for="book-select">Choose books / documents</label>
+    <label for="book-select">Choose loaded documents for this session</label>
     <select id="book-select" multiple size="4"></select>
-    <p class="hint">Select the loaded reference documents that should be active for this session.</p>
+    <p class="hint">Select the documents you want active for the game session.</p>
     <div class="result" id="session-result"></div>
   </div>
 
   <div class="card">
-    <h2>Step 2: Continue the story</h2>
-    <label for="session-id">Session ID</label>
-    <input id="session-id" type="text" placeholder="session id" />
-    <label for="user-message">What happens next?</label>
-    <textarea id="user-message" rows="4" placeholder="Describe the next action or scene."></textarea>
-    <button id="send-message">Continue Story</button>
-    <div class="result" id="message-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Upload story documents</h2>
+    <h2>Upload story books</h2>
     <input id="pdf-file" type="file" accept="application/pdf" multiple />
     <button id="upload-pdf">Upload PDFs</button>
     <div class="result" id="upload-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Character creation</h2>
-    <label for="character-name">Name</label>
-    <input id="character-name" type="text" placeholder="Character name" />
-    <label for="character-clan">Clan / Type</label>
-    <input id="character-clan" type="text" placeholder="Vampire clan, changeling court, etc." />
-    <label for="character-notes">Notes</label>
-    <textarea id="character-notes" rows="3" placeholder="Background, traits, or tracking notes"></textarea>
-    <button id="create-character">Create Character</button>
-    <div class="result" id="character-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Retrieve reference info</h2>
-    <label for="query-text">Query</label>
-    <textarea id="query-text" rows="3" placeholder="Search the loaded documents"></textarea>
-    <button id="retrieve-docs">Retrieve</button>
-    <div class="result" id="retrieve-result"></div>
   </div>
 
   <div class="card">
@@ -141,20 +97,6 @@
     });
     const data = await response.json();
     document.getElementById('session-result').textContent = JSON.stringify(data, null, 2);
-    document.getElementById('session-id').value = data.session_id;
-    await refreshDocuments();
-  }
-
-  async function sendMessage() {
-    const sessionId = document.getElementById('session-id').value;
-    const message = document.getElementById('user-message').value;
-    const response = await fetch(`${apiBase}/gm/step`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({session_id: sessionId, message}),
-    });
-    const data = await response.json();
-    document.getElementById('message-result').textContent = JSON.stringify(data, null, 2);
   }
 
   async function uploadPdf() {
@@ -172,37 +114,6 @@
     const data = await response.json();
     document.getElementById('upload-result').textContent = JSON.stringify(data, null, 2);
     await refreshDocuments();
-  }
-
-  async function createCharacter() {
-    const sessionId = document.getElementById('session-id').value;
-    const name = document.getElementById('character-name').value;
-    const clan = document.getElementById('character-clan').value;
-    const notes = document.getElementById('character-notes').value;
-
-    if (!sessionId) {
-      document.getElementById('character-result').textContent = 'Enter a session id before creating a character.';
-      return;
-    }
-
-    const response = await fetch(`${apiBase}/sessions/${sessionId}/characters`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, clan, notes}),
-    });
-    const data = await response.json();
-    document.getElementById('character-result').textContent = JSON.stringify(data, null, 2);
-  }
-
-  async function retrieveDocs() {
-    const query = document.getElementById('query-text').value;
-    const response = await fetch(`${apiBase}/documents/retrieve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({query}),
-    });
-    const data = await response.json();
-    document.getElementById('retrieve-result').textContent = data.results || 'No relevant matches.';
   }
 
   async function refreshDocuments() {
@@ -225,10 +136,7 @@
   }
 
   document.getElementById('create-session').addEventListener('click', createSession);
-  document.getElementById('send-message').addEventListener('click', sendMessage);
   document.getElementById('upload-pdf').addEventListener('click', uploadPdf);
-  document.getElementById('create-character').addEventListener('click', createCharacter);
-  document.getElementById('retrieve-docs').addEventListener('click', retrieveDocs);
   refreshDocuments();
 </script>
 </body>
