@@ -9,7 +9,8 @@ Quickstart
 1. Run `install_dependencies.bat` once.
 2. The installer creates a desktop shortcut for `launch_storyteller_ai.bat` automatically.
 3. Double-click the desktop shortcut or `launch_storyteller_ai.bat` to start the backend.
-4. Open your browser at:
+4. For a one-click offline startup with Ollama and Llama2, run `launch_storyteller_ai_ollama.bat`.
+5. Open your browser at:
 
     http://127.0.0.1:8000/
 
