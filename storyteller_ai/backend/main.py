@@ -11,9 +11,11 @@ app = FastAPI(title="Storyteller AI Backend")
 app.include_router(documents.router)
 app.include_router(gm.router)
 app.include_router(sessions.router)
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
