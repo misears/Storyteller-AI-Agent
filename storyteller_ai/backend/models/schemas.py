@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 class Character(BaseModel):
     name: str
     clan: Optional[str] = None
+    notes: Optional[str] = None
     attributes: Dict[str, Any] = {}
     conditions: List[str] = []
 
