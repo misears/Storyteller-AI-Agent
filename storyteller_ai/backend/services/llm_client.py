@@ -1,11 +1,16 @@
 import json
 import os
+from pathlib import Path
 from typing import AsyncGenerator
 
+from dotenv import load_dotenv
 import httpx
 
 from .llm_response import LLMResponse
 from .retry import with_retries
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT_DIR / ".env")
 
 STATE_UPDATE_TOOL = {
     "name": "apply_state_update",
@@ -21,19 +26,19 @@ STATE_UPDATE_TOOL = {
 
 
 def _get_env_lower(name: str, default: str) -> str:
-    return os.getenv(name, default).lower()
+    return os.getenv(name, default).strip().lower()
 
 
 def _get_llm_model() -> str:
-    return os.getenv("LLM_MODEL", "gpt-4o-mini")
+    return os.getenv("LLM_MODEL", "gpt-4o-mini").strip()
 
 
 def _get_ollama_url() -> str:
-    return os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+    return os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").strip()
 
 
 def _get_ollama_model() -> str:
-    return os.getenv("OLLAMA_MODEL", _get_llm_model())
+    return os.getenv("OLLAMA_MODEL", _get_llm_model()).strip()
 
 
 class BaseProvider:

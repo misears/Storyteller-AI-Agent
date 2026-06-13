@@ -82,7 +82,12 @@
   </div>
 </div>
 <script>
-  const apiBase = window.location.origin;
+  const apiBase = (() => {
+    if (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null') {
+      return 'http://127.0.0.1:8000';
+    }
+    return window.location.origin;
+  })();
 
   async function createSession() {
     const mode = document.getElementById('session-mode').value;
@@ -101,19 +106,44 @@
 
   async function uploadPdf() {
     const fileInput = document.getElementById('pdf-file');
-    if (!fileInput.files.length) return;
+    const output = document.getElementById('upload-result');
+    output.textContent = '';
+    if (!fileInput.files.length) {
+      output.textContent = 'No PDF selected.';
+      return;
+    }
+
+    const fileCount = fileInput.files.length;
     const form = new FormData();
     for (const file of fileInput.files) {
       form.append('files', file);
     }
 
-    const response = await fetch(`${apiBase}/documents/upload`, {
-      method: 'POST',
-      body: form,
-    });
-    const data = await response.json();
-    document.getElementById('upload-result').textContent = JSON.stringify(data, null, 2);
-    await refreshDocuments();
+    try {
+      const response = await fetch(`${apiBase}/documents/upload`, {
+        method: 'POST',
+        body: form,
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        const text = await response.text();
+        throw new Error(text || jsonError.message);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.detail || JSON.stringify(data));
+      }
+
+      const successMsg = `✓ Successfully uploaded ${fileCount} PDF${fileCount > 1 ? 's' : ''}. ${data.documents.length} document${data.documents.length > 1 ? 's' : ''} added.`;
+      output.textContent = successMsg + '\n\n' + JSON.stringify(data, null, 2);
+      fileInput.value = '';
+      await refreshDocuments();
+    } catch (error) {
+      output.textContent = `✗ Upload failed: ${error.message}`;
+    }
   }
 
   async function refreshDocuments() {
