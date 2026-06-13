@@ -1,7 +1,9 @@
 import asyncio
+import io
 
 from httpx2 import ASGITransport, AsyncClient
 
+import fitz
 from backend.main import app
 
 
@@ -61,6 +63,27 @@ def test_session_status_endpoint(monkeypatch):
     assert status_body["session_id"] == session_id
     assert status_body["mode"] == "group"
     assert "state" in status_body
+
+
+def test_upload_document():
+    buf = io.BytesIO()
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Test PDF upload content.")
+    doc.save(buf)
+    doc.close()
+    buf.seek(0)
+
+    async def request_upload():
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            files = {"files": ("test_upload.pdf", buf.read(), "application/pdf")}
+            return await client.post("/documents/upload", files=files)
+
+    response = _run_async(request_upload())
+    assert response.status_code == 200
+    body = response.json()
+    assert "documents" in body
+    assert body["documents"][0]["title"] == "test_upload.pdf"
 
 
 def test_health_endpoint():

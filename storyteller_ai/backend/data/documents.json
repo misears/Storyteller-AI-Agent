@@ -1,0 +1,14 @@
+{
+  "documents": {
+    "test_upload.pdf": {
+      "title": "test_upload.pdf",
+      "text": "Test PDF upload content.\n",
+      "path": "data\\documents\\test_upload.pdf"
+    },
+    "test_upload.pdf-1": {
+      "title": "test_upload.pdf",
+      "text": "Test PDF upload content.\n",
+      "path": "data\\documents\\test_upload.pdf-1"
+    }
+  }
+}
