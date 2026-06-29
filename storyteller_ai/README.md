@@ -101,6 +101,14 @@ The frontend includes:
 Document ingestion API
 ----------------------
 
+PDF extraction now includes OCR fallback for scanned/image-only pages.
+
+OCR setup (for scanned PDFs):
+
+1. Install Tesseract OCR on Windows.
+2. Ensure `tesseract.exe` is on `PATH`, or set `TESSERACT_CMD` to the full executable path.
+3. Install Python dependencies in `requirements.txt` (`pytesseract`, `Pillow`).
+
 POST /documents/upload
 
 - form field: `file` (PDF file)

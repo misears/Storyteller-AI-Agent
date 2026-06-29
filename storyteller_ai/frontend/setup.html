@@ -93,12 +93,55 @@
     .link-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
     .footer-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
     .align-end { display: flex; align-items: flex-end; }
+    .preset-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 10px; }
     .preview {
       border: 1px dashed var(--card-border);
       border-radius: var(--radius);
       padding: 16px;
       background: var(--surface);
       color: var(--text);
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 0 12px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .status-refresh {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .preset-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 9999px;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      border: 1px solid var(--card-border);
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .status-pill.ok {
+      border-color: #16a34a;
+      color: #86efac;
+    }
+    .status-pill.warn {
+      border-color: #f59e0b;
+      color: #fcd34d;
     }
 
     @media (max-width: 900px) {
@@ -149,9 +192,18 @@
         <button id="create-session">Create Game</button>
       </div>
     </div>
+    <label for="campaign-genres">Campaign genres (multi-select for cross-genre play)</label>
+    <select id="campaign-genres" multiple size="5"></select>
+    <div class="preset-row">
+      <button type="button" id="preset-vampire" class="preset-btn">Vampire Campaign</button>
+      <button type="button" id="preset-werewolf" class="preset-btn">Werewolf Campaign</button>
+      <button type="button" id="preset-crossover" class="preset-btn">Crossover WoD</button>
+      <button type="button" id="preset-clear-genres" class="preset-btn">Clear Preset</button>
+    </div>
+    <p class="hint">Tip: combine genres like vampire + werewolf for crossover campaigns.</p>
     <label for="book-select">Choose loaded documents for this session</label>
     <select id="book-select" multiple size="4"></select>
-    <p class="hint">Select the documents you want active for the game session.</p>
+    <p class="hint" id="book-select-hint">Select the documents you want active for the game session.</p>
     <div class="result" id="session-result"></div>
     <div class="footer-actions">
       <button onclick="window.location.href='play.html'">Go to Story Console</button>
@@ -160,8 +212,16 @@
 
   <div class="card">
     <h2>2) Upload story documents (stored in database)</h2>
+    <div class="status-row">
+      <span>OCR status:</span>
+      <span id="ocr-status-pill" class="status-pill">Checking...</span>
+      <button id="refresh-ocr-status" class="status-refresh" title="Refresh OCR status" aria-label="Refresh OCR status">↻</button>
+    </div>
     <label for="pdf-file">Choose one or more PDF files</label>
     <input id="pdf-file" type="file" accept="application/pdf" multiple />
+    <label for="upload-genres">Tag uploaded PDFs with genres</label>
+    <select id="upload-genres" multiple size="5"></select>
+    <p class="hint">Selected genres are saved on each uploaded PDF to power campaign filtering.</p>
     <button id="upload-pdf">Upload PDFs</button>
     <div class="result" id="upload-result"></div>
   </div>
@@ -248,6 +308,30 @@
     return window.location.origin;
   })();
 
+  const genreOptions = [
+    { value: 'vampire', label: 'Vampire' },
+    { value: 'werewolf', label: 'Werewolf' },
+    { value: 'mage', label: 'Mage' },
+    { value: 'changeling', label: 'Changeling' },
+    { value: 'hunter', label: 'Hunter' },
+    { value: 'wraith', label: 'Wraith' },
+    { value: 'mummy', label: 'Mummy' },
+    { value: 'demon', label: 'Demon' },
+    { value: 'mortals', label: 'Mortals' },
+    { value: 'fantasy', label: 'Fantasy' },
+    { value: 'custom', label: 'Custom' },
+  ];
+
+  const settingToGenres = {
+    'Old World of Darkness': ['vampire', 'werewolf', 'mage', 'hunter', 'wraith'],
+    'New World of Darkness': ['vampire', 'werewolf', 'mage', 'hunter'],
+    Changeling: ['changeling'],
+    'Generic Fantasy': ['fantasy'],
+    Custom: ['custom'],
+  };
+
+  let allDocuments = [];
+
   const themePresets = {
     midnight: {
       bg: '#0f172a',
@@ -321,16 +405,98 @@
     if (layout.fontScale) root.style.setProperty('--font-scale', String(layout.fontScale));
   }
 
+  function renderGenreOptions(selectElement, selectedGenres = []) {
+    const selected = new Set((selectedGenres || []).map(value => String(value).toLowerCase()));
+    selectElement.innerHTML = '';
+    for (const optionDef of genreOptions) {
+      const option = document.createElement('option');
+      option.value = optionDef.value;
+      option.textContent = optionDef.label;
+      option.selected = selected.has(optionDef.value);
+      selectElement.appendChild(option);
+    }
+  }
+
+  function getSelectedValues(selectId) {
+    return Array.from(document.getElementById(selectId).selectedOptions).map(option => option.value);
+  }
+
+  function applyGenrePreset(genres) {
+    const select = document.getElementById('campaign-genres');
+    const selected = new Set(genres);
+    for (const option of select.options) {
+      option.selected = selected.has(option.value);
+    }
+    refreshBookOptions();
+  }
+
+  function getInferredGenresForSetting() {
+    const setting = document.getElementById('game-setting').value;
+    return settingToGenres[setting] || [];
+  }
+
+  function getEffectiveCampaignGenres() {
+    const selectedCampaignGenres = getSelectedValues('campaign-genres');
+    if (selectedCampaignGenres.length) {
+      return selectedCampaignGenres;
+    }
+    return getInferredGenresForSetting();
+  }
+
+  function intersects(left, right) {
+    const rightSet = new Set(right);
+    return left.some(item => rightSet.has(item));
+  }
+
+  function refreshBookOptions() {
+    const select = document.getElementById('book-select');
+    const hint = document.getElementById('book-select-hint');
+    const previouslySelected = new Set(getSelectedValues('book-select'));
+    const effectiveGenres = getEffectiveCampaignGenres();
+
+    let matching = allDocuments;
+    if (effectiveGenres.length) {
+      matching = allDocuments.filter(doc => intersects(doc.genres || [], effectiveGenres));
+    }
+
+    select.innerHTML = '';
+    for (const doc of matching) {
+      const option = document.createElement('option');
+      option.value = doc.document_id;
+      const genreLabel = (doc.genres && doc.genres.length) ? ` [${doc.genres.join(', ')}]` : '';
+      option.textContent = `${doc.title}${genreLabel}`;
+      option.selected = previouslySelected.has(doc.document_id);
+      select.appendChild(option);
+    }
+
+    if (!allDocuments.length) {
+      hint.textContent = 'Upload PDFs first, then choose the documents for this campaign.';
+    } else if (!matching.length && effectiveGenres.length) {
+      hint.textContent = 'No documents match selected campaign genres. Add more genres or retag documents below.';
+    } else if (effectiveGenres.length) {
+      hint.textContent = `Showing ${matching.length} matching document(s) for campaign genres: ${effectiveGenres.join(', ')}.`;
+    } else {
+      hint.textContent = 'Select the documents you want active for the game session.';
+    }
+  }
+
   async function createSession() {
     const mode = document.getElementById('session-mode').value;
     const title = document.getElementById('game-title').value;
     const setting = document.getElementById('game-setting').value;
-    const selected = Array.from(document.getElementById('book-select').selectedOptions).map(option => option.value);
+    const selected = getSelectedValues('book-select');
+    const campaignGenres = getEffectiveCampaignGenres();
 
     const response = await fetch(`${apiBase}/sessions/create`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({mode, title, setting, document_ids: selected}),
+      body: JSON.stringify({
+        mode,
+        title,
+        setting,
+        document_ids: selected,
+        campaign_genres: campaignGenres,
+      }),
     });
     const data = await response.json();
     document.getElementById('session-result').textContent = JSON.stringify(data, null, 2) + `\n\nSession ID: ${data.session_id}`;
@@ -338,6 +504,7 @@
 
   async function uploadPdf() {
     const fileInput = document.getElementById('pdf-file');
+    const uploadGenres = getSelectedValues('upload-genres');
     const output = document.getElementById('upload-result');
     output.textContent = '';
     if (!fileInput.files.length) {
@@ -350,6 +517,7 @@
     for (const file of fileInput.files) {
       form.append('files', file);
     }
+    form.append('genres', uploadGenres.join(','));
 
     try {
       const response = await fetch(`${apiBase}/documents/upload`, {
@@ -373,8 +541,29 @@
       output.textContent = successMsg + '\n\n' + JSON.stringify(data, null, 2);
       fileInput.value = '';
       await refreshDocuments();
+      await loadOcrStatus();
     } catch (error) {
       output.textContent = `Upload failed: ${error.message}`;
+    }
+  }
+
+  async function loadOcrStatus() {
+    const pill = document.getElementById('ocr-status-pill');
+    try {
+      const response = await fetch(`${apiBase}/settings/ocr`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || JSON.stringify(data));
+      }
+      pill.textContent = data.active ? 'Active' : 'Unavailable';
+      pill.classList.remove('ok', 'warn');
+      pill.classList.add(data.active ? 'ok' : 'warn');
+      pill.title = data.detail || '';
+    } catch (error) {
+      pill.textContent = 'Unknown';
+      pill.classList.remove('ok');
+      pill.classList.add('warn');
+      pill.title = `Unable to load OCR status: ${error.message}`;
     }
   }
 
@@ -470,16 +659,48 @@
     const response = await fetch(`${apiBase}/documents/list`);
     const data = await response.json();
     const list = document.getElementById('doc-list');
-    const select = document.getElementById('book-select');
+    allDocuments = data.documents || [];
     list.innerHTML = '';
-    select.innerHTML = '';
-    for (const doc of data.documents) {
+    refreshBookOptions();
+
+    for (const doc of allDocuments) {
       const item = document.createElement('li');
       const label = document.createElement('span');
-      label.textContent = `${doc.title} - ${doc.size} chars`;
+      const docGenres = (doc.genres || []).join(', ');
+      label.textContent = docGenres
+        ? `${doc.title} - ${doc.size} chars - genres: ${docGenres}`
+        : `${doc.title} - ${doc.size} chars - genres: untagged`;
 
       const actions = document.createElement('div');
       actions.className = 'doc-actions';
+
+      const tagSelect = document.createElement('select');
+      tagSelect.multiple = true;
+      tagSelect.size = 4;
+      tagSelect.style.width = '200px';
+      renderGenreOptions(tagSelect, doc.genres || []);
+
+      const saveTagsButton = document.createElement('button');
+      saveTagsButton.textContent = 'Save Tags';
+      saveTagsButton.addEventListener('click', async () => {
+        const genres = Array.from(tagSelect.selectedOptions).map(option => option.value);
+        const uploadOutput = document.getElementById('upload-result');
+        try {
+          const updateResponse = await fetch(`${apiBase}/documents/${encodeURIComponent(doc.document_id)}/genres`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({genres}),
+          });
+          const payload = await updateResponse.json();
+          if (!updateResponse.ok) {
+            throw new Error(payload.detail || JSON.stringify(payload));
+          }
+          uploadOutput.textContent = `Updated genres for ${doc.title}.`;
+          await refreshDocuments();
+        } catch (error) {
+          uploadOutput.textContent = `Genre update failed: ${error.message}`;
+        }
+      });
 
       const deleteButton = document.createElement('button');
       deleteButton.className = 'btn-danger';
@@ -507,25 +728,32 @@
       });
 
       actions.appendChild(deleteButton);
+      actions.appendChild(tagSelect);
+      actions.appendChild(saveTagsButton);
       item.appendChild(label);
       item.appendChild(actions);
       list.appendChild(item);
-
-      const option = document.createElement('option');
-      option.value = doc.document_id;
-      option.textContent = doc.title;
-      select.appendChild(option);
     }
   }
 
   applyLayoutPreferences(getSavedLayout());
   hydrateLayoutControls();
+  renderGenreOptions(document.getElementById('campaign-genres'));
+  renderGenreOptions(document.getElementById('upload-genres'));
   document.getElementById('create-session').addEventListener('click', createSession);
   document.getElementById('upload-pdf').addEventListener('click', uploadPdf);
   document.getElementById('save-llm-settings').addEventListener('click', saveLlmSettings);
   document.getElementById('apply-layout').addEventListener('click', applyLayoutFromControls);
   document.getElementById('reset-layout').addEventListener('click', resetLayout);
+  document.getElementById('refresh-ocr-status').addEventListener('click', loadOcrStatus);
+  document.getElementById('campaign-genres').addEventListener('change', refreshBookOptions);
+  document.getElementById('game-setting').addEventListener('change', refreshBookOptions);
+  document.getElementById('preset-vampire').addEventListener('click', () => applyGenrePreset(['vampire']));
+  document.getElementById('preset-werewolf').addEventListener('click', () => applyGenrePreset(['werewolf']));
+  document.getElementById('preset-crossover').addEventListener('click', () => applyGenrePreset(['vampire', 'werewolf', 'mage']));
+  document.getElementById('preset-clear-genres').addEventListener('click', () => applyGenrePreset([]));
   loadLlmSettings();
+  loadOcrStatus();
   refreshDocuments();
 </script>
 </body>

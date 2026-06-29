@@ -10,6 +10,35 @@ def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"\w+", text.lower()))
 
 
+def _normalize_genres(genres: List[str] | None) -> List[str]:
+    if not genres:
+        return []
+
+    normalized = []
+    seen = set()
+    for genre in genres:
+        value = genre.strip().lower()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _parse_genre_tags(raw_value: str) -> List[str]:
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return []
+
+    if not isinstance(parsed, list):
+        return []
+
+    return _normalize_genres([str(item) for item in parsed])
+
+
 class DocumentStore:
     def __init__(self) -> None:
         self.base_dir = get_data_dir().parent
@@ -35,10 +64,20 @@ class DocumentStore:
                     title TEXT NOT NULL,
                     text TEXT NOT NULL,
                     path TEXT NOT NULL,
+                    genre_tags TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
+
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            if "genre_tags" not in columns:
+                connection.execute(
+                    "ALTER TABLE documents ADD COLUMN genre_tags TEXT NOT NULL DEFAULT '[]'"
+                )
             connection.commit()
 
     def _document_exists(self, document_id: str) -> bool:
@@ -79,34 +118,44 @@ class DocumentStore:
             for document_id, document in documents.items():
                 connection.execute(
                     """
-                    INSERT OR IGNORE INTO documents (document_id, title, text, path)
-                    VALUES (?, ?, ?, ?)
+                    INSERT OR IGNORE INTO documents (document_id, title, text, path, genre_tags)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         document_id,
                         document.get("title", document_id),
                         document.get("text", ""),
                         document.get("path", ""),
+                        json.dumps(_normalize_genres(document.get("genres", []))),
                     ),
                 )
             connection.commit()
 
-    def add_document(self, document_id: str, title: str, text: str, pdf_bytes: bytes) -> str:
+    def add_document(
+        self,
+        document_id: str,
+        title: str,
+        text: str,
+        pdf_bytes: bytes,
+        genres: List[str] | None = None,
+    ) -> str:
         document_id = self._normalize_id(document_id)
         pdf_path = self.document_dir / document_id
         pdf_path.write_bytes(pdf_bytes)
+        normalized_genres = _normalize_genres(genres)
 
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO documents (document_id, title, text, path)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO documents (document_id, title, text, path, genre_tags)
+                VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     document_id,
                     title,
                     text,
                     str(pdf_path.relative_to(self.base_dir)),
+                    json.dumps(normalized_genres),
                 ),
             )
             connection.commit()
@@ -116,7 +165,7 @@ class DocumentStore:
     def list_documents(self) -> List[Dict[str, str]]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT document_id, title, text FROM documents ORDER BY created_at DESC, document_id DESC"
+                "SELECT document_id, title, text, genre_tags FROM documents ORDER BY created_at DESC, document_id DESC"
             ).fetchall()
 
         return [
@@ -124,9 +173,20 @@ class DocumentStore:
                 "document_id": row["document_id"],
                 "title": row["title"],
                 "size": len(row["text"]),
+                "genres": _parse_genre_tags(row["genre_tags"]),
             }
             for row in rows
         ]
+
+    def update_document_genres(self, document_id: str, genres: List[str] | None) -> bool:
+        normalized_genres = _normalize_genres(genres)
+        with self._connect() as connection:
+            result = connection.execute(
+                "UPDATE documents SET genre_tags = ? WHERE document_id = ?",
+                (json.dumps(normalized_genres), document_id),
+            )
+            connection.commit()
+            return result.rowcount > 0
 
     def delete_document(self, document_id: str) -> bool:
         with self._connect() as connection:

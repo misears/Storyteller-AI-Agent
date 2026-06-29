@@ -56,10 +56,11 @@
     },
     {
       "label": "Test + Lint",
-      "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python -m pytest -q && ${workspaceFolder}/venv/Scripts/python -m ruff check backend tests",
-      "args": [
+      "dependsOn": [
+        "Run Tests",
+        "Lint (ruff)"
       ],
+      "dependsOrder": "sequence",
       "group": "test",
       "presentation": {
         "reveal": "always",
