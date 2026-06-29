@@ -54,15 +54,19 @@ Set `LLM_PROVIDER` to one of:
 
 Example for Ollama:
 
-    set LLM_PROVIDER=ollama
-    set OLLAMA_URL=http://127.0.0.1:11434
-    set OLLAMA_MODEL=llama2:7b
-    uvicorn backend.main:app --reload
+```bat
+set LLM_PROVIDER=ollama
+set OLLAMA_URL=http://127.0.0.1:11434
+set OLLAMA_MODEL=llama2:7b
+uvicorn backend.main:app --reload
+```
 
 Example for mock mode:
 
-    set LLM_PROVIDER=mock
-    uvicorn backend.main:app --reload
+```bat
+set LLM_PROVIDER=mock
+uvicorn backend.main:app --reload
+```
 
 Packaging as a Single Executable
 ---------------------------------
@@ -78,18 +82,24 @@ Recommended next step:
 
 Typical packaging flow:
 
-    build_storyteller_ai_exe.bat
+```bat
+build_storyteller_ai_exe.bat
+```
 
 Output location:
 
-    dist\StorytellerAI.exe
+```text
+dist\StorytellerAI.exe
+```
 
 Frontend
 --------
 
 Start the backend and open the UI in a browser at:
 
-    http://127.0.0.1:8000/
+```text
+http://127.0.0.1:8000/
+```
 
 The frontend includes:
 
