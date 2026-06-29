@@ -86,6 +86,33 @@ def test_upload_document():
     assert body["documents"][0]["title"] == "test_upload.pdf"
 
 
+def test_delete_document():
+    buf = io.BytesIO()
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Test PDF delete content.")
+    doc.save(buf)
+    doc.close()
+    buf.seek(0)
+
+    async def request_upload_then_delete():
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            files = {"files": ("test_delete.pdf", buf.read(), "application/pdf")}
+            upload_response = await client.post("/documents/upload", files=files)
+            uploaded_id = upload_response.json()["documents"][0]["document_id"]
+
+            delete_response = await client.delete(f"/documents/{uploaded_id}")
+            list_response = await client.get("/documents/list")
+            return upload_response, delete_response, list_response, uploaded_id
+
+    upload_response, delete_response, list_response, uploaded_id = _run_async(request_upload_then_delete())
+    assert upload_response.status_code == 200
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
+    remaining_ids = [doc["document_id"] for doc in list_response.json()["documents"]]
+    assert uploaded_id not in remaining_ids
+
+
 def test_health_endpoint():
     response = _run_async(_submit_request("get", "/health"))
 
