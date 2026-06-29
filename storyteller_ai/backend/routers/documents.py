@@ -1,19 +1,22 @@
 import io
+import logging
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 from ..services.document_store import document_store
-from ..services.pdf_ingest import extract_text_from_pdf
+from ..services.pdf_ingest import extract_text_from_pdf, get_ocr_runtime_status
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+logger = logging.getLogger(__name__)
 
 
 class DocumentResponse(BaseModel):
     document_id: str
     title: str
     size: int
+    genres: List[str] = Field(default_factory=list)
 
 
 class DocumentListResponse(BaseModel):
@@ -24,6 +27,7 @@ class DocumentUploadResult(BaseModel):
     document_id: str
     title: str
     size: int
+    genres: List[str] = Field(default_factory=list)
 
 
 class DocumentUploadResponse(BaseModel):
@@ -43,10 +47,47 @@ class DeleteDocumentResponse(BaseModel):
     document_id: str
 
 
+class UpdateDocumentGenresRequest(BaseModel):
+    genres: List[str] = Field(default_factory=list)
+
+
+class UpdateDocumentGenresResponse(BaseModel):
+    updated: bool
+    document_id: str
+    genres: List[str] = Field(default_factory=list)
+
+
+def _parse_genres_csv(raw_value: str) -> List[str]:
+    if not raw_value:
+        return []
+    seen = set()
+    parsed = []
+    for item in raw_value.split(","):
+        value = item.strip().lower()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        parsed.append(value)
+    return parsed
+
+
 @router.post("/upload", response_model=DocumentUploadResponse)
-async def upload_document(files: List[UploadFile] = File(...)) -> Dict[str, Any]:
+async def upload_document(
+    files: List[UploadFile] = File(...),
+    genres: str = Form(default=""),
+) -> Dict[str, Any]:
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
+
+    parsed_genres = _parse_genres_csv(genres)
+
+    ocr_active, ocr_detail = get_ocr_runtime_status()
+    logger.info(
+        "PDF upload request: files=%d ocr_active=%s detail=%s",
+        len(files),
+        ocr_active,
+        ocr_detail,
+    )
 
     documents = []
     for file in files:
@@ -60,8 +101,16 @@ async def upload_document(files: List[UploadFile] = File(...)) -> Dict[str, Any]
             title=file.filename,
             text=text,
             pdf_bytes=contents,
+            genres=parsed_genres,
         )
-        documents.append({"document_id": document_id, "title": file.filename, "size": len(text)})
+        documents.append(
+            {
+                "document_id": document_id,
+                "title": file.filename,
+                "size": len(text),
+                "genres": parsed_genres,
+            }
+        )
 
     return {"documents": documents}
 
@@ -83,3 +132,14 @@ def delete_document(document_id: str) -> DeleteDocumentResponse:
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
     return {"deleted": True, "document_id": document_id}
+
+
+@router.put("/{document_id}/genres", response_model=UpdateDocumentGenresResponse)
+def update_document_genres(
+    document_id: str,
+    payload: UpdateDocumentGenresRequest,
+) -> UpdateDocumentGenresResponse:
+    updated = document_store.update_document_genres(document_id, payload.genres)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    return {"updated": True, "document_id": document_id, "genres": payload.genres}
