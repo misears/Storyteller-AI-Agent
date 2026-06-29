@@ -26,7 +26,8 @@
       "args": [
         "-m",
         "flake8",
-        "storyteller_ai"
+        "backend",
+        "tests"
       ],
       "group": "build",
       "presentation": {
@@ -43,7 +44,8 @@
         "-m",
         "ruff",
         "check",
-        "storyteller_ai"
+        "backend",
+        "tests"
       ],
       "group": "build",
       "presentation": {
@@ -55,17 +57,8 @@
     {
       "label": "Test + Lint",
       "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python",
+      "command": "${workspaceFolder}/venv/Scripts/python -m pytest -q && ${workspaceFolder}/venv/Scripts/python -m ruff check backend tests",
       "args": [
-        "-m",
-        "pytest",
-        "-q",
-        "&&",
-        "${workspaceFolder}/venv/Scripts/python",
-        "-m",
-        "ruff",
-        "check",
-        "storyteller_ai"
       ],
       "group": "test",
       "presentation": {
@@ -81,7 +74,7 @@
       "args": [
         "-m",
         "uvicorn",
-        "storyteller_ai.backend.main:app",
+        "backend.main:app",
         "--reload",
         "--host",
         "127.0.0.1",

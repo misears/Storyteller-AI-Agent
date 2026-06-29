@@ -8,6 +8,7 @@ import httpx
 
 from .llm_response import LLMResponse
 from .retry import with_retries
+from .runtime_settings import runtime_settings
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT_DIR / ".env")
@@ -25,20 +26,20 @@ STATE_UPDATE_TOOL = {
 }
 
 
-def _get_env_lower(name: str, default: str) -> str:
-    return os.getenv(name, default).strip().lower()
+def _get_llm_settings() -> dict[str, str]:
+    return runtime_settings.get_llm()
 
 
 def _get_llm_model() -> str:
-    return os.getenv("LLM_MODEL", "gpt-4o-mini").strip()
+    return _get_llm_settings()["model"]
 
 
 def _get_ollama_url() -> str:
-    return os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").strip()
+    return _get_llm_settings()["ollama_url"]
 
 
 def _get_ollama_model() -> str:
-    return os.getenv("OLLAMA_MODEL", _get_llm_model()).strip()
+    return _get_llm_settings()["ollama_model"]
 
 
 class BaseProvider:
@@ -81,7 +82,7 @@ class OpenAIProvider(BaseProvider):
 
     async def stream(self, system_prompt: str, user_message: str) -> AsyncGenerator[str, None]:
         stream = await self.client.chat.completions.create(
-            model=LLM_MODEL,
+            model=_get_llm_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -188,7 +189,7 @@ class MockProvider(BaseProvider):
 
 
 def _build_provider() -> BaseProvider:
-    provider = _get_env_lower("LLM_PROVIDER", "openai")
+    provider = _get_llm_settings()["provider"].lower()
     if provider == "openai":
         return OpenAIProvider()
     if provider == "anthropic":

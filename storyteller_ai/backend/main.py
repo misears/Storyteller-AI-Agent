@@ -1,14 +1,22 @@
-from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .routers import documents, gm, sessions
+from .routers import documents, gm, sessions, settings
+from .services.browser_launcher import launch_browser_when_ready
+from .services.app_paths import get_frontend_dir
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = BASE_DIR / "frontend"
+FRONTEND_DIR = get_frontend_dir()
 
-app = FastAPI(title="Storyteller AI Backend")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    launch_browser_when_ready()
+    yield
+
+
+app = FastAPI(title="Storyteller AI Backend", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,6 +27,7 @@ app.add_middleware(
 app.include_router(documents.router)
 app.include_router(gm.router)
 app.include_router(sessions.router)
+app.include_router(settings.router)
 
 
 @app.get("/health")

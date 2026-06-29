@@ -1,3 +1,4 @@
 {
-    "python.analysis.typeCheckingMode": "standard"
+    "python.analysis.typeCheckingMode": "standard",
+    "github.copilot.chat.agentDebugLog.fileLogging.enabled": true
 }

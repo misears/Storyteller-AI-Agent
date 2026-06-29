@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Storyteller AI - Story Console</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --text: #e2e8f0;
+      --card: #111827;
+      --card-border: #334155;
+      --surface: #0b1120;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --radius: 16px;
+      --input-radius: 12px;
+      --font-scale: 1;
+      --space: 20px;
+    }
+
+    body {
+      font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-size: calc(14px * var(--font-scale));
+    }
+
+    .page { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { margin-bottom: 12px; color: #f8fafc; }
+    .card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); padding: var(--space); margin-bottom: var(--space); }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input[type="text"], textarea, select { width: 100%; border-radius: var(--input-radius); border: 1px solid var(--card-border); background: var(--bg); color: var(--text); padding: 12px; font-size: 14px; box-sizing: border-box; }
+    button { background: var(--accent); border: none; border-radius: 9999px; color: white; padding: 12px 20px; cursor: pointer; font-size: 14px; transition: background 0.2s ease; }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .row { display: grid; gap: var(--space); }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .result { white-space: pre-wrap; background: var(--surface); padding: 16px; border-radius: calc(var(--radius) - 2px); border: 1px solid var(--card-border); min-height: 140px; }
+    .doc-list { list-style: none; padding-left: 0; }
+    .doc-list li { margin-bottom: 8px; }
+    .hint { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+    .link-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .info { color: #cbd5e1; margin-top: 8px; font-size: 14px; }
+    .important { color: #7dd3fc; }
+    .flex-end { display: flex; align-items: flex-end; }
+
+    @media (max-width: 800px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>Story Console</h1>
+  <div class="link-row">
+    <button onclick="window.location.href='index.html'">Home</button>
+    <button onclick="window.location.href='setup.html'">Setup</button>
+    <button onclick="window.location.href='character_tracker.html'">Character Tracker</button>
+  </div>
+  <div class="card">
+    <h2>How to use this page</h2>
+    <ol>
+      <li>Create or configure your game session on Setup.</li>
+      <li>Enter the session ID and continue the story turn by turn.</li>
+      <li>Retrieve supporting details from uploaded documents.</li>
+    </ol>
+    <div class="hint">Tip: Use setup first, then return here to run turns.</div>
+  </div>
+
+  <div class="card">
+    <h2>Continue the story</h2>
+    <label for="session-id">Session ID</label>
+    <input id="session-id" type="text" placeholder="session id" />
+    <label for="user-message">What happens next?</label>
+    <textarea id="user-message" rows="4" placeholder="Describe the next action or scene."></textarea>
+    <button id="send-message">Continue Story</button>
+    <div class="result" id="message-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Character creation</h2>
+    <label for="character-name">Name</label>
+    <input id="character-name" type="text" placeholder="Character name" />
+    <label for="character-clan">Clan / Type</label>
+    <input id="character-clan" type="text" placeholder="Vampire clan, changeling court, etc." />
+    <label for="character-notes">Notes</label>
+    <textarea id="character-notes" rows="3" placeholder="Background, traits, or tracking notes"></textarea>
+    <button id="create-character">Create Character</button>
+    <div class="result" id="character-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Retrieve reference info</h2>
+    <label for="query-text">Query</label>
+    <textarea id="query-text" rows="3" placeholder="Search the loaded documents"></textarea>
+    <button id="retrieve-docs">Retrieve</button>
+    <div class="result" id="retrieve-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Loaded documents</h2>
+    <ul class="doc-list" id="doc-list"></ul>
+  </div>
+</div>
+<script>
+  const apiBase = (() => {
+    if (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null') {
+      return 'http://127.0.0.1:8000';
+    }
+    return window.location.origin;
+  })();
+
+  function applyLayoutPreferences() {
+    const raw = localStorage.getItem('storytellerLayoutPrefs');
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const prefs = JSON.parse(raw);
+      const root = document.documentElement;
+      if (prefs.bg) root.style.setProperty('--bg', prefs.bg);
+      if (prefs.text) root.style.setProperty('--text', prefs.text);
+      if (prefs.card) root.style.setProperty('--card', prefs.card);
+      if (prefs.cardBorder) root.style.setProperty('--card-border', prefs.cardBorder);
+      if (prefs.surface) root.style.setProperty('--surface', prefs.surface);
+      if (prefs.accent) root.style.setProperty('--accent', prefs.accent);
+      if (prefs.accentHover) root.style.setProperty('--accent-hover', prefs.accentHover);
+      if (prefs.radius) root.style.setProperty('--radius', prefs.radius);
+      if (prefs.inputRadius) root.style.setProperty('--input-radius', prefs.inputRadius);
+      if (prefs.space) root.style.setProperty('--space', prefs.space);
+      if (prefs.fontScale) root.style.setProperty('--font-scale', String(prefs.fontScale));
+    } catch (error) {
+      console.error('Failed to apply saved layout preferences', error);
+    }
+  }
+
+  async function sendMessage() {
+    const sessionId = document.getElementById('session-id').value;
+    const message = document.getElementById('user-message').value;
+    const response = await fetch(`${apiBase}/gm/step`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({session_id: sessionId, message}),
+    });
+    const data = await response.json();
+    document.getElementById('message-result').textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function createCharacter() {
+    const sessionId = document.getElementById('session-id').value;
+    const name = document.getElementById('character-name').value;
+    const clan = document.getElementById('character-clan').value;
+    const notes = document.getElementById('character-notes').value;
+
+    if (!sessionId) {
+      document.getElementById('character-result').textContent = 'Enter a session id before creating a character.';
+      return;
+    }
+
+    const response = await fetch(`${apiBase}/sessions/${sessionId}/characters`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, clan, notes}),
+    });
+    const data = await response.json();
+    document.getElementById('character-result').textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function retrieveDocs() {
+    const query = document.getElementById('query-text').value;
+    const response = await fetch(`${apiBase}/documents/retrieve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query}),
+    });
+    const data = await response.json();
+    document.getElementById('retrieve-result').textContent = data.results || 'No relevant matches.';
+  }
+
+  async function refreshDocuments() {
+    const response = await fetch(`${apiBase}/documents/list`);
+    const data = await response.json();
+    const list = document.getElementById('doc-list');
+    list.innerHTML = '';
+    for (const doc of data.documents) {
+      const item = document.createElement('li');
+      item.textContent = `${doc.title} - ${doc.size} chars`;
+      list.appendChild(item);
+    }
+  }
+
+  applyLayoutPreferences();
+  document.getElementById('send-message').addEventListener('click', sendMessage);
+  document.getElementById('create-character').addEventListener('click', createCharacter);
+  document.getElementById('retrieve-docs').addEventListener('click', retrieveDocs);
+  refreshDocuments();
+</script>
+</body>
+</html>

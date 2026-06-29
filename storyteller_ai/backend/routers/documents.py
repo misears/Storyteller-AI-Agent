@@ -38,6 +38,11 @@ class RetrieveResponse(BaseModel):
     results: str
 
 
+class DeleteDocumentResponse(BaseModel):
+    deleted: bool
+    document_id: str
+
+
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(files: List[UploadFile] = File(...)) -> Dict[str, Any]:
     if not files:
@@ -70,3 +75,11 @@ def list_documents() -> DocumentListResponse:
 def retrieve_documents(payload: RetrieveRequest) -> RetrieveResponse:
     results = document_store.retrieve(payload.query)
     return {"results": results}
+
+
+@router.delete("/{document_id}", response_model=DeleteDocumentResponse)
+def delete_document(document_id: str) -> DeleteDocumentResponse:
+    deleted = document_store.delete_document(document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    return {"deleted": True, "document_id": document_id}

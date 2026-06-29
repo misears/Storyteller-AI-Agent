@@ -1,0 +1,3976 @@
+1.  
+TECHNICAL DESIGN & IMPLEMENTATION GUIDE
+White Wolf Storyteller AI
+Complete System Design Document
+
+Version: 1.0 — Initial Release
+Date: June 2026
+Prepared for: Michael — Software Development Team
+Classification: Internal Technical Reference
+
+An LLM-Powered Game Master & Lore Engine for World of Darkness Tabletop Campaigns
+
+Table of Contents
+
+Section 1 — Project Overview & Architecture
+1.1 System Purpose
+1.2 High-Level Architecture Diagram
+1.3 Technology Stack
+Section 2 — FastAPI Project Skeleton
+2.1 Directory Structure
+2.2 main.py — Application Entry Point
+2.3 config.py — Settings
+2.4 dependencies.py — Dependency Injection
+2.5 Sample Route — sessions.py
+2.6 Sample Route — gm.py
+2.7 docker-compose.yml
+2.8 requirements.txt
+Section 3 — Data Schema
+3.1 Database Models (SQLAlchemy)
+3.2 Pydantic v2 Schemas
+3.3 Enums Module
+3.4 Alembic Migration Setup
+Section 4 — Prompt Pack
+4.1 Solo Player Mode Prompts
+4.2 Group Session Mode Prompts
+4.3 Assistant GM Mode Prompts
+4.4 Prompt Utilities (Python)
+Section 5 — PDF Ingestion Pipeline
+5.1 Pipeline Overview
+5.2 pdf_parser.py
+5.3 chunk_embedder.py
+5.4 vector_store.py
+5.5 ingestion_tasks.py — Celery Task
+5.6 Ingestion API Route
+5.7 White Wolf Book Reference Table
+Section 6 — State Engine
+6.1 Overview
+6.2 State Schema
+6.3 state_machine.py
+6.4 Context Window Management
+6.5 Tension & Doom System
+Section 7 — Discord Bot Architecture
+7.1 Overview
+7.2 Bot Directory Structure
+7.3 bot.py
+7.4 session_cog.py
+7.5 gm_cog.py
+7.6 lore_cog.py
+7.7 Narrative Channel Flow
+7.8 Reaction / Button Handlers
+7.9 Rate Limiting & Cost Management
+7.10 Deployment Notes
+Appendix A — Environment Variables Reference
+Appendix B — Testing Strategy
+Appendix C — Roadmap & Future Enhancements
+
+Section 1 — Project Overview & Architecture
+
+The darkness does not yield its secrets easily. The White Wolf Storyteller AI is a system born from shadows — an intelligent, lore-aware engine that breathes life into the World of Darkness from the vantage point of the digital age. This section establishes what the system is, how its components relate to one another, and what technologies anchor its foundations.
+1.1 System Purpose
+
+The Storyteller AI is a large language model (LLM) powered backend system that functions simultaneously as Game Master, lore oracle, NPC voice engine, and narrative continuity engine for tabletop roleplaying sessions within the World of Darkness universe — encompassing Vampire: The Masquerade, Werewolf: The Apocalypse, Mage: The Ascension, Changeling: The Dreaming, Hunter: The Reckoning, Wraith: The Oblivion, and adjacent splats.
+Unlike a static chatbot, the Storyteller AI maintains rich, persistent narrative state across sessions, retrieves accurate lore from ingested official source books, tracks character sheets and NPC relationships, and adapts its voice and pacing to the emotional tenor of the chronicle. It speaks not as a machine querying a database, but as an ancient, world-weary narrator who has witnessed the rise and fall of Kindred princes, the howl of the Garou at the dying Gauntlet, and the slow unraveling of consensual reality under Mage hands.
+Operational Modes
+The system supports three distinct operational modes, each targeting a different play context:
+
+ModeDescriptionPrimary UserKey BehaviorsSolo PlayerAI acts as full GM for a single player running a personal chronicleIndividual playerFull narration, offers 3 choices per scene, tracks all state autonomouslyGroup SessionAI manages a full table of 2–8 players, coordinating spotlight and character responsesPlayer group, no human GMMulti-character tracking, turn management, inter-PC conflict handlingAssistant GMAI acts as co-GM whispering suggestions, lore lookups, and encounter ideas to a human GMHuman Storyteller / GMEphemeral suggestions, never narrates directly, bracket-annotated outputs
+Knowledge Graph & Lore Ingestion
+The system ingests official White Wolf and Onyx Path PDFs — rulebooks, lore supplements, chronicles, and setting sourcebooks — through a dedicated processing pipeline. Raw PDF text is extracted, cleaned of OCR artifacts, chunked into semantically coherent passages, embedded into a vector space, and stored in ChromaDB. Metadata (source book, page, chapter, splat relevance) is persisted to PostgreSQL alongside each embedding reference. At query time, the retrieval layer performs semantic similarity search to surface the most relevant lore chunks and injects them into the LLM prompt context — grounding AI narration in canonical material rather than hallucinated lore.
+
+? CRITICAL DESIGN PRINCIPLE
+The Storyteller AI must never fabricate canonical lore not present in the ingested source material. All supernatural power descriptions, faction histories, and mechanical rules must be grounded in retrieved chunks. Unfounded invention erodes player trust and breaks immersion. The retrieval layer is not optional — it is the difference between a Storyteller and a liar.
+1.2 High-Level Architecture Diagram
+
+The following table replaces the original text diagram with a Word-friendly architecture map showing the major components, their responsibilities, and the primary data flows between them.
+text — Architecture Diagram
+White Wolf Storyteller AI — System Architecture v1.0User Interface Layer
+Discord Bot (discord.py)
+Cogs: session, gm, lore
+Players and GM interact through slash commands and channel messages.API & Orchestration Layer
+FastAPI Backend
+app/main.py, api/v1/routes, lifespan context, CORS, auth middleware
+Coordinates narration requests, lore lookups, session management, and ingestion endpoints.Narrative Intelligence Layer
+Storyteller Engine (core/)
+State Machine Engine
+LLM Layer (OpenAI GPT-4o or local adapter)
+Builds prompts, manages state, retrieves lore, and produces narration responses.Data & Processing Layer
+PostgreSQL / SQLite via SQLAlchemy
+ChromaDB / Vector Store
+PDF Ingestion Pipeline
+Celery Worker + Redis Broker
+Stores session state, character data, lore chunks, embeddings, and asynchronous ingestion jobs.Primary Request Flow: Player Input ? Discord Bot ? FastAPI Backend ? Storyteller Engine ? State Machine / Vector Retrieval / Prompt Builder ? LLM Layer ? Narration Response ? FastAPI Backend ? Discord Bot ? Player
+Primary Ingestion Flow: PDF Upload ? FastAPI Backend ? Celery Task ? PDF Parser ? Chunk Embedder ? ChromaDB + PostgreSQLFlow TypePath SummaryNarration RequestDiscord Bot sends player input over httpx to FastAPI, which invokes the Storyteller Engine to assemble context, retrieve lore, update state, and return narration.Lore RetrievalThe Storyteller Engine queries the vector store for relevant lore chunks and combines the results with session state before sending the final prompt to the LLM layer.State PersistenceNarrative updates, character changes, NPC activity, and event logs are written through SQLAlchemy to PostgreSQL or SQLite.PDF IngestionUploaded sourcebooks are processed asynchronously through Celery and Redis, then stored as searchable embeddings in ChromaDB with metadata in PostgreSQL.1.3 Technology Stack
+
+Every layer of the Storyteller AI has been selected for reliability, ecosystem maturity, and compatibility with the demanding real-time requirements of interactive narrative. The following table enumerates the full stack.
+
+LayerTechnologyVersionRole & NotesAPI FrameworkFastAPI0.111+Async REST API; OpenAPI docs auto-generated; dependency injection via Depends()Language RuntimePython3.11+Required for asyncio.TaskGroup, structural pattern matching, tomllibORMSQLAlchemy2.0+Async ORM mode; declarative models; supports PostgreSQL and SQLite for devMigrationsAlembic1.13+Schema versioning; autogenerate from SQLAlchemy models; integrated with env.pyPrimary DatabasePostgreSQL15+Session state, character sheets, NPC registry, lore metadata, event logVector DatabaseChromaDB0.5+Local-first vector store; supports Pinecone swap for production scaleLLM OrchestrationLangChain0.2+Text splitters, embedding wrappers, retrieval chains; model-agnostic abstractionsLLM ProviderOpenAI GPT-4oAPI v1Primary narration engine; configurable to local models (Ollama/Mistral) via adapterDiscord Interfacediscord.py2.3+Bot framework; slash commands, Cogs architecture, UI components (buttons, embeds)PDF ExtractionPyMuPDF (fitz)1.24+Fast text extraction with font metadata; essential for header detection heuristicsSchema ValidationPydantic v22.7+Request/response models, settings management, JSON serializationCache / BrokerRedis7.xCelery message broker; session token budget caching; narration cooldown trackingTask QueueCelery5.4+Async PDF ingestion tasks; progress tracking; retry on failureHTTP Clienthttpx0.27+Async HTTP for Discord bot ? FastAPI communicationContainerizationDocker / Composev3.8+Multi-service orchestration; reproducible dev and production environments
+
+Section 2 — FastAPI Project Skeleton
+
+The project skeleton is structured to enforce separation of concerns at every layer: routing, business logic, data access, ingestion, and bot interface are each isolated into their own module trees. This structure enables independent testing, deployment of subsystems, and clean dependency management. What follows is the complete skeleton, from directory tree to working source files.
+2.1 Directory Structure
+
+text — Project Directory Tree
+Top LevelPathFile or FolderPurposeapp/app/main.pyApplication entry point and lifespan management.app/config.pyPydantic BaseSettings environment configuration.app/dependencies.pyFastAPI dependency injection providers.app/api/v1/routes/sessions.pySession CRUD and narration endpoint.app/api/v1/routes/characters.pyCharacter sheet management endpoints.app/api/v1/routes/lore.pyLore query endpoints.app/api/v1/routes/npcs.pyNPC registry management.app/api/v1/routes/ingestion.pyPDF upload and task-status endpoints.app/api/v1/routes/gm.pyGM assistant mode endpoints.app/core/storyteller_engine.pyMain orchestration engine.app/core/prompt_builder.pyPrompt assembly utilities.app/core/state_machine.pyNarrative state machine.app/core/lore_retriever.pyVector database retrieval wrapper.app/db/models.pySQLAlchemy ORM models.app/db/session.pyAsync database session factory.app/db/crud.pyCRUD helpers.app/schemas/character.pyCharacter Pydantic schemas.app/schemas/session.pySession Pydantic schemas.app/schemas/npc.pyNPC Pydantic schemas.app/schemas/lore.pyLore entry schemas.app/enums.pyShared enum classes.app/ingestion/pdf_parser.py, chunk_embedder.py, vector_store.pyPDF extraction, chunking, embedding, and vector storage.app/discord_bot/bot.py, config.py, cogs/discord.py bot, bot-specific config, and command cogs.app/tasks/celery_app.py, ingestion_tasks.pyCelery app factory and PDF ingestion task chain.alembic/alembic/alembic.iniAlembic configuration file.alembic/env.pyMigration environment setup.alembic/versions/versions/Auto-generated migration scripts.tests/tests/test_state_machine.pyState machine unit tests.tests/test_ingestion.pyPDF ingestion pipeline tests.tests/test_routes.pyAPI route tests.tests/conftest.pyShared pytest fixtures.tests/__init__.pyMarks tests as a package.Project Root./docker-compose.ymlMulti-service local orchestration../DockerfileContainer image definition../.env.exampleSample environment variable definitions../requirements.txt, README.mdPython dependencies and project documentation.
+2.2 main.py — Application Entry Point
+
+python — app/main.py
+""" White Wolf Storyteller AI — FastAPI Application Entry Point """
+from __future__ import annotations
+
+import logging
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import get_settings
+from app.db.session import init_db
+from app.ingestion.vector_store import init_chroma
+from app.api.v1.routes import (
+    sessions,
+    characters,
+    lore,
+    npcs,
+    ingestion,
+    gm,
+)
+
+logger = logging.getLogger("storyteller")
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Application lifespan context manager.
+    Runs startup logic before yield and teardown after.
+    """
+    logger.info("??  Storyteller AI awakening from slumber...")
+
+    # Initialize PostgreSQL schema
+    await init_db()
+    logger.info("?? Database connection established.")
+
+    # Initialize ChromaDB vector store
+    await init_chroma()
+    logger.info("?? Vector store initialized.")
+
+    yield
+
+    # Teardown (if needed — connection pools auto-close)
+    logger.info("?? Storyteller AI returning to darkness. Farewell.")
+
+
+def create_application() -> FastAPI:
+    """Factory function — returns a configured FastAPI instance."""
+    app = FastAPI(
+        title="White Wolf Storyteller AI",
+        description=(
+            "An LLM-powered Game Master and lore engine for "
+            "World of Darkness tabletop RPG sessions."
+        ),
+        version="1.0.0",
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
+        lifespan=lifespan,
+    )
+
+    # ?? CORS Middleware ??????????????????????????????????????????????????
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ?? API Routers — v1 ????????????????????????????????????????????????
+    API_PREFIX = "/api/v1"
+
+    app.include_router(sessions.router, prefix=f"{API_PREFIX}/sessions", tags=["Sessions"])
+    app.include_router(characters.router, prefix=f"{API_PREFIX}/characters", tags=["Characters"])
+    app.include_router(lore.router, prefix=f"{API_PREFIX}/lore", tags=["Lore"])
+    app.include_router(npcs.router, prefix=f"{API_PREFIX}/npcs", tags=["NPCs"])
+    app.include_router(ingestion.router, prefix=f"{API_PREFIX}/ingestion", tags=["Ingestion"])
+    app.include_router(gm.router, prefix=f"{API_PREFIX}/gm", tags=["GM Assistant"])
+
+    return app
+
+
+app = create_application()
+
+
+@app.get("/health", tags=["Health"])
+async def health_check() -> dict:
+    """Liveness probe endpoint. Returns 200 if the API is running."""
+    return {
+        "status": "alive",
+        "version": "1.0.0",
+        "service": "White Wolf Storyteller AI",
+    }
+2.3 config.py — Settings
+
+python — app/config.py
+""" Application settings via Pydantic BaseSettings. All values are loaded from environment variables or .env file. """
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import List
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
+
+    # ?? Application ??????????????????????????????????????????????????????
+    APP_NAME: str = "White Wolf Storyteller AI"
+    VERSION: str = "1.0.0"
+    DEBUG: bool = False
+    SECRET_KEY: str  # Required — used for JWT / session signing
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+
+    # ?? Database ?????????????????????????????????????????????????????????
+    DATABASE_URL: str  # e.g. postgresql+asyncpg://user:pass@localhost/storyteller
+
+    # ?? OpenAI ???????????????????????????????????????????????????????????
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    OPENAI_MAX_TOKENS: int = 2048
+    OPENAI_TEMPERATURE: float = 0.85
+
+    # ?? ChromaDB ?????????????????????????????????????????????????????????
+    CHROMA_HOST: str = "localhost"
+    CHROMA_PORT: int = 8001
+    CHROMA_COLLECTION_NAME: str = "wod_lore"
+
+    # ?? Redis ?????????????????????????????????????????????????????????????
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # ?? Celery ???????????????????????????????????????????????????????????
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
+
+    # ?? Discord Bot ???????????????????????????????????????????????????????
+    DISCORD_TOKEN: str
+    DISCORD_CLIENT_ID: str
+    DISCORD_GM_ROLE_NAME: str = "Storyteller"
+
+    # ?? Rate Limiting / Cost Control ??????????????????????????????????????
+    DAILY_TOKEN_BUDGET_PER_GUILD: int = 200_000
+    NARRATION_COOLDOWN_SECONDS: int = 30
+
+    # ?? Storage ???????????????????????????????????????????????????????????
+    PDF_UPLOAD_DIR: str = "/tmp/wod_pdfs"
+    MAX_PDF_SIZE_MB: int = 100
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return cached Settings singleton. Call this everywhere you need config."""
+    return Settings()
+2.4 dependencies.py — Dependency Injection
+
+python — app/dependencies.py
+""" FastAPI dependency injection providers. Import and use with Depends() in route functions. """
+from __future__ import annotations
+
+from typing import AsyncGenerator
+
+import chromadb
+from openai import AsyncOpenAI
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import get_settings
+from app.core.storyteller_engine import StorytellerEngine
+from app.db.session import AsyncSessionLocal
+from app.ingestion.vector_store import get_chroma_client
+
+settings = get_settings()
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Yields an async SQLAlchemy session.
+    Session is committed or rolled back automatically.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+async def get_vector_store() -> chromadb.AsyncClientAPI:
+    """
+    Returns the initialized ChromaDB async client.
+    Assumes init_chroma() was called during application lifespan startup.
+    """
+    return get_chroma_client()
+
+
+async def get_llm_client() -> AsyncOpenAI:
+    """
+    Returns an AsyncOpenAI client instance using the configured API key.
+    """
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+async def get_storyteller_engine(
+    db: AsyncSession = ...,
+    vector_store: chromadb.AsyncClientAPI = ...,
+    llm_client: AsyncOpenAI = ...,
+) -> StorytellerEngine:
+    """
+    Assembles and returns the main StorytellerEngine with all dependencies.
+    Use in route handlers that need full narration capability.
+
+    Example:
+        @router.post("/sessions/{session_id}/narrate")
+        async def narrate(
+            session_id: UUID,
+            engine: StorytellerEngine = Depends(get_storyteller_engine),
+        ):
+            ...
+    """
+    return StorytellerEngine(
+        db=db,
+        vector_store=vector_store,
+        llm_client=llm_client,
+        settings=settings,
+    )
+2.5 Sample Route — sessions.py
+
+python — app/api/v1/routes/sessions.py
+""" Session management routes. Handles creation, retrieval, narration, and deletion of game sessions. """
+from __future__ import annotations
+
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import crud
+from app.dependencies import get_db, get_storyteller_engine
+from app.core.storyteller_engine import StorytellerEngine
+from app.schemas.session import (
+    SessionCreate,
+    SessionResponse,
+    NarrateRequest,
+    NarrateResponse,
+)
+
+router = APIRouter()
+
+
+@router.post(
+    "/",
+    response_model=SessionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new game session",
+)
+async def create_session(
+    payload: SessionCreate,
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    """
+    Creates a new GameSession record. Initializes default state_json
+    for the specified mode and setting (splat).
+    """
+    session = await crud.create_game_session(db, payload)
+    return SessionResponse.model_validate(session)
+
+
+@router.get(
+    "/{session_id}",
+    response_model=SessionResponse,
+    summary="Retrieve a session by ID",
+)
+async def get_session(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> SessionResponse:
+    """
+    Returns session metadata and current state_json for the given session ID.
+    """
+    session = await crud.get_game_session(db, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found.",
+        )
+    return SessionResponse.model_validate(session)
+
+
+@router.post(
+    "/{session_id}/narrate",
+    response_model=NarrateResponse,
+    summary="Submit player action and receive AI narration",
+)
+async def narrate(
+    session_id: UUID,
+    payload: NarrateRequest,
+    db: AsyncSession = Depends(get_db),
+    engine: StorytellerEngine = Depends(get_storyteller_engine),
+) -> NarrateResponse:
+    """
+    Core narration endpoint. Accepts player input text, runs the full
+    narration pipeline (state lookup ? lore retrieval ? prompt build ?
+    LLM call ? state update ? event log), and returns the AI's narration.
+    """
+    session = await crud.get_game_session(db, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found.",
+        )
+    if not session.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Session is not active. Start or resume the session first.",
+        )
+
+    result = await engine.narrate(
+        session=session,
+        player_input=payload.player_input,
+        acting_character_id=payload.character_id,
+    )
+
+    return NarrateResponse(
+        narration=result.narration_text,
+        state_delta=result.state_delta,
+        suggested_actions=result.suggested_actions,
+        token_count=result.token_count,
+        session_id=session_id,
+    )
+
+
+@router.delete(
+    "/{session_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Archive and delete a session",
+)
+async def delete_session(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Marks session as archived (soft delete). Preserves event log for
+    chronicle history. Hard deletion requires admin override.
+    """
+    session = await crud.get_game_session(db, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found.",
+        )
+    await crud.archive_game_session(db, session_id)
+2.6 Sample Route — gm.py
+
+python — app/api/v1/routes/gm.py
+""" GM Assistant Mode routes. All endpoints return suggestions to the human GM — never direct player narration. Outputs are annotated with [SUGGESTION:], [RULE:], [HOOK:], [PACING:] prefixes. """
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import crud
+from app.dependencies import get_db, get_storyteller_engine
+from app.core.storyteller_engine import StorytellerEngine
+from app.schemas.session import (
+    GMSuggestRequest,
+    GMSuggestResponse,
+    NPCVoiceRequest,
+    NPCVoiceResponse,
+    EncounterRequest,
+    EncounterResponse,
+)
+
+router = APIRouter()
+
+
+@router.post(
+    "/suggest",
+    response_model=GMSuggestResponse,
+    summary="GM sends scene context, AI returns annotated suggestions",
+)
+async def gm_suggest(
+    payload: GMSuggestRequest,
+    db: AsyncSession = Depends(get_db),
+    engine: StorytellerEngine = Depends(get_storyteller_engine),
+) -> GMSuggestResponse:
+    """
+    Accepts the GM's brief scene description or question and returns
+    structured, bracket-annotated suggestions. Never narrates to players.
+    Response format uses:
+      [SUGGESTION:] — narrative or scene direction ideas
+      [RULE:]       — mechanical rules clarifications
+      [HOOK:]       — plot hooks to plant
+      [PACING:]     — pacing and tension management advice
+    """
+    result = await engine.gm_suggest(
+        scene_context=payload.scene_context,
+        session_id=payload.session_id,
+        gm_question=payload.gm_question,
+    )
+    return GMSuggestResponse(suggestions=result.suggestions, token_count=result.token_count)
+
+
+@router.post(
+    "/npc-voice",
+    response_model=NPCVoiceResponse,
+    summary="Generate in-character NPC dialogue options",
+)
+async def npc_voice(
+    payload: NPCVoiceRequest,
+    db: AsyncSession = Depends(get_db),
+    engine: StorytellerEngine = Depends(get_storyteller_engine),
+) -> NPCVoiceResponse:
+    """
+    Given an NPC name (looked up from session registry) and the current
+    conversational context, returns 2-3 dialogue options in the NPC's
+    voice profile (tone, vocabulary level, speech patterns, accent notes).
+    """
+    npc = await crud.get_npc_by_name(db, payload.npc_name, payload.session_id)
+    if not npc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"NPC '{payload.npc_name}' not found in session registry.",
+        )
+
+    result = await engine.generate_npc_voice(npc=npc, context=payload.context)
+    return NPCVoiceResponse(
+        npc_name=npc.name,
+        dialogue_options=result.dialogue_options,
+        voice_notes=result.voice_notes,
+    )
+
+
+@router.post(
+    "/encounter",
+    response_model=EncounterResponse,
+    summary="Generate a fully-described encounter from parameters",
+)
+async def generate_encounter(
+    payload: EncounterRequest,
+    engine: StorytellerEngine = Depends(get_storyteller_engine),
+) -> EncounterResponse:
+    """
+    Generates a complete encounter based on:
+      - location: physical/metaphysical setting description
+      - mood: atmospheric tone (e.g., 'desperate', 'tense', 'eerie')
+      - threat_level: integer 1 (trivial) to 5 (catastrophic)
+      - active_factions: list of involved factions from session context
+
+    Returns: opening_description, npc_motivations, escalation_paths,
+             possible_resolutions, xp_reward_suggestion, lore_hooks.
+    """
+    result = await engine.generate_encounter(
+        location=payload.location,
+        mood=payload.mood,
+        threat_level=payload.threat_level,
+        active_factions=payload.active_factions,
+        session_id=payload.session_id,
+    )
+    return EncounterResponse(
+        opening_description=result.opening_description,
+        npc_motivations=result.npc_motivations,
+        escalation_paths=result.escalation_paths,
+        possible_resolutions=result.possible_resolutions,
+        xp_reward_suggestion=result.xp_reward_suggestion,
+        lore_hooks=result.lore_hooks,
+    )
+2.7 docker-compose.yml
+
+yaml — docker-compose.yml
+version: "3.8"
+
+services:
+  # ?? FastAPI Application ?????????????????????????????????????????????????
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: storyteller_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://storyteller:darkpassword@postgres:5432/storyteller_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8001
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    volumes:
+      - ./app:/app/app
+      - pdf_uploads:/tmp/wod_pdfs
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # ?? PostgreSQL Database ?????????????????????????????????????????????????
+  postgres:
+    image: postgres:15-alpine
+    container_name: storyteller_postgres
+    environment:
+      POSTGRES_USER: storyteller
+      POSTGRES_PASSWORD: darkpassword
+      POSTGRES_DB: storyteller_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storyteller -d storyteller_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ?? Redis Broker & Cache ???????????????????????????????????????????????
+  redis:
+    image: redis:7-alpine
+    container_name: storyteller_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ?? ChromaDB Vector Store ??????????????????????????????????????????????
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: storyteller_chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+  # ?? Celery Worker (PDF Ingestion Tasks) ????????????????????????????????
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: storyteller_celery
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 -Q ingestion
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://storyteller:darkpassword@postgres:5432/storyteller_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8001
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+    volumes:
+      - ./app:/app/app
+      - pdf_uploads:/tmp/wod_pdfs
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  chroma_data:
+  pdf_uploads:
+2.8 requirements.txt
+
+text — requirements.txt
+# ?? Web Framework ???????????????????????????????????????????????????????
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9       # multipart/form-data for PDF uploads
+
+# ?? Configuration ???????????????????????????????????????????????????????
+pydantic==2.7.1
+pydantic-settings==2.3.1
+
+# ?? Database ?????????????????????????????????????????????????????????????
+sqlalchemy==2.0.30
+asyncpg==0.29.0               # Async PostgreSQL driver
+aiosqlite==0.20.0             # SQLite async driver (dev/testing)
+alembic==1.13.1
+
+# ?? Vector Store ?????????????????????????????????????????????????????????
+chromadb==0.5.3
+
+# ?? LLM & Embeddings ?????????????????????????????????????????????????????
+openai==1.35.3
+langchain==0.2.6
+langchain-openai==0.1.14
+langchain-community==0.2.6
+langchain-text-splitters==0.2.2
+tiktoken==0.7.0               # Token counting for context window management
+
+# ?? PDF Processing ????????????????????????????????????????????????????????
+PyMuPDF==1.24.5               # fitz — PDF text extraction with font metadata
+
+# ?? Task Queue ????????????????????????????????????????????????????????????
+celery==5.4.0
+redis==5.0.6
+
+# ?? HTTP Client ???????????????????????????????????????????????????????????
+httpx==0.27.0                 # API client and test client transport
+
+# ?? Discord Bot ???????????????????????????????????????????????????????????
+discord.py==2.3.2
+
+# ?? Utilities ?????????????????????????????????????????????????????????????
+python-dotenv==1.0.1
+tenacity==8.4.1               # Retry logic for OpenAI calls
+structlog==24.2.0             # Structured logging
+python-jose[cryptography]==3.3.0  # JWT for session auth
+
+# ?? Testing ???????????????????????????????????????????????????????????????
+pytest==8.2.2
+pytest-asyncio==0.23.7
+pytest-mock==3.14.0
+factory-boy==3.3.0            # Test fixture factories
+
+Section 3 — Data Schema
+
+The data schema is the skeletal architecture upon which all narrative state hangs. Characters must carry the weight of their histories; NPCs must harbor their secrets in structured fields; each fragment of ingested lore must be traceable to its source. The schema uses SQLAlchemy 2.0 async ORM models for persistence and Pydantic v2 models for API serialization and validation — a clean separation of storage concerns from transport concerns.
+3.1 Database Models (SQLAlchemy)
+
+python — app/db/models.py
+"""SQLAlchemy ORM models for the White Wolf Storyteller AI. All models use async-compatible mapped_column syntax (SQLAlchemy 2.0)."""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSON, UUID as PGUUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from app.enums import (
+    Splat,
+    SessionMode,
+    NPCDisposition,
+    LoreCategory,
+    PowerCategory,
+    EventType,
+)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+# ?? GameSession ??????????????????????????????????????????????????????????????
+class GameSession(Base):
+    __tablename__ = "game_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    mode: Mapped[SessionMode] = mapped_column(
+        SAEnum(SessionMode), nullable=False, default=SessionMode.SOLO
+    )
+    setting: Mapped[Splat] = mapped_column(
+        SAEnum(Splat), nullable=False, default=Splat.VAMPIRE
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    chronicle_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    state_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+        onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    characters: Mapped[list[Character]] = relationship(
+        "Character", back_populates="session", cascade="all, delete-orphan"
+    )
+    events: Mapped[list[SessionEvent]] = relationship(
+        "SessionEvent", back_populates="session", cascade="all, delete-orphan"
+    )
+    npcs: Mapped[list[NPC]] = relationship(
+        "NPC", back_populates="session", cascade="all, delete-orphan"
+    )
+
+
+# ?? Character ????????????????????????????????????????????????????????????????
+class Character(Base):
+    __tablename__ = "characters"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("game_sessions.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    player_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    splat: Mapped[Splat] = mapped_column(SAEnum(Splat), nullable=False)
+    clan_tribe_tradition: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Splat-specific rank: Generation (Vampire), Rank (Werewolf), Arete (Mage)
+    generation_rank_arete: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+
+    # JSON blobs for character sheet sections
+    attributes_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    abilities_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    disciplines_gifts_spheres_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    backgrounds_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    virtues_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    flaws_merits_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    health_levels_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    # Core pools
+    humanity_gnosis_arete: Mapped[int] = mapped_column(Integer, default=7, nullable=False)
+    willpower: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    blood_pool_rage_quintessence: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+
+    backstory_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    portrait_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    session: Mapped[GameSession] = relationship("GameSession", back_populates="characters")
+
+
+# ?? NPC ??????????????????????????????????????????????????????????????????????
+class NPC(Base):
+    __tablename__ = "npcs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("game_sessions.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    splat: Mapped[Optional[Splat]] = mapped_column(SAEnum(Splat), nullable=True)
+    clan_tribe: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    archetype: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    disposition: Mapped[NPCDisposition] = mapped_column(
+        SAEnum(NPCDisposition), default=NPCDisposition.NEUTRAL, nullable=False
+    )
+    is_recurring: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    current_location: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
+    # JSON blobs
+    known_powers_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    secrets_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    relationship_to_pcs_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    # Voice profile: tone, speech_patterns, vocabulary_level, accent_notes
+    voice_profile_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    session: Mapped[GameSession] = relationship("GameSession", back_populates="npcs")
+
+
+# ?? LoreEntry ????????????????????????????????????????????????????????????????
+class LoreEntry(Base):
+    __tablename__ = "lore_entries"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_book: Mapped[str] = mapped_column(String(255), nullable=False)
+    page_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    category: Mapped[LoreCategory] = mapped_column(SAEnum(LoreCategory), nullable=False)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    tags_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    splat_relevance_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+# ?? Power ????????????????????????????????????????????????????????????????????
+class Power(Base):
+    __tablename__ = "powers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    splat: Mapped[Splat] = mapped_column(SAEnum(Splat), nullable=False)
+    category: Mapped[PowerCategory] = mapped_column(
+        SAEnum(PowerCategory), nullable=False
+    )
+    level: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5+
+    description_text: Mapped[str] = mapped_column(Text, nullable=False)
+    system_text: Mapped[str] = mapped_column(Text, nullable=False)
+    prerequisites_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    source_book: Mapped[str] = mapped_column(String(255), nullable=False)
+    page_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+
+# ?? SessionEvent ?????????????????????????????????????????????????????????????
+class SessionEvent(Base):
+    __tablename__ = "session_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("game_sessions.id"), nullable=False
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    event_type: Mapped[EventType] = mapped_column(SAEnum(EventType), nullable=False)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    session: Mapped[GameSession] = relationship("GameSession", back_populates="events")
+3.2 Pydantic v2 Schemas
+
+python — app/schemas/session.py (excerpt — full schemas)
+"""Pydantic v2 schemas for sessions, narration requests, and GM endpoints."""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.enums import Splat, SessionMode
+
+
+# ?? Session Schemas ???????????????????????????????????????????????????????????
+class SessionCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255, description="Chronicle or session name")
+    mode: SessionMode = Field(default=SessionMode.SOLO)
+    setting: Splat = Field(default=Splat.VAMPIRE)
+    chronicle_notes: Optional[str] = Field(default=None, max_length=5000)
+
+
+class SessionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    mode: SessionMode
+    setting: Splat
+    is_active: bool
+    chronicle_notes: Optional[str]
+    state_json: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime
+
+
+# ?? Narration Schemas ?????????????????????????????????????????????????????????
+class NarrateRequest(BaseModel):
+    player_input: str = Field(
+        ..., min_length=1, max_length=2000,
+        description="The player's declared action or dialogue"
+    )
+    character_id: Optional[uuid.UUID] = Field(
+        default=None,
+        description="ID of the acting character. Required in group mode."
+    )
+
+
+class NarrateResponse(BaseModel):
+    session_id: uuid.UUID
+    narration: str
+    state_delta: Dict[str, Any] = Field(default_factory=dict)
+    suggested_actions: List[str] = Field(default_factory=list)
+    token_count: int
+
+
+# ?? GM Assistant Schemas ??????????????????????????????????????????????????????
+class GMSuggestRequest(BaseModel):
+    session_id: Optional[uuid.UUID] = None
+    scene_context: str = Field(..., min_length=10, max_length=3000)
+    gm_question: Optional[str] = Field(default=None, max_length=500)
+
+
+class GMSuggestResponse(BaseModel):
+    suggestions: str
+    token_count: int
+
+
+class NPCVoiceRequest(BaseModel):
+    session_id: uuid.UUID
+    npc_name: str = Field(..., min_length=1, max_length=255)
+    context: str = Field(
+        ..., min_length=10, max_length=1500,
+        description="Current conversation or scene context"
+    )
+
+
+class NPCVoiceResponse(BaseModel):
+    npc_name: str
+    dialogue_options: List[str]
+    voice_notes: Optional[str]
+
+
+class EncounterRequest(BaseModel):
+    session_id: Optional[uuid.UUID] = None
+    location: str = Field(..., min_length=5, max_length=500)
+    mood: str = Field(
+        ..., min_length=3, max_length=100,
+        description="Atmospheric tone: 'tense', 'eerie', 'desperate', etc."
+    )
+    threat_level: int = Field(..., ge=1, le=5)
+    active_factions: List[str] = Field(default_factory=list)
+
+    @field_validator("threat_level")
+    @classmethod
+    def validate_threat(cls, v: int) -> int:
+        if not 1 <= v <= 5:
+            raise ValueError("threat_level must be between 1 and 5.")
+        return v
+
+
+class EncounterResponse(BaseModel):
+    opening_description: str
+    npc_motivations: List[str]
+    escalation_paths: List[str]
+    possible_resolutions: List[str]
+    xp_reward_suggestion: str
+    lore_hooks: List[str]
+python — app/schemas/character.py (excerpt)
+"""Pydantic v2 schemas for Character objects."""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.enums import Splat
+
+
+class CharacterCreate(BaseModel):
+    session_id: uuid.UUID
+    name: str = Field(..., min_length=1, max_length=255)
+    player_name: str = Field(..., min_length=1, max_length=255)
+    splat: Splat
+    clan_tribe_tradition: Optional[str] = None
+    generation_rank_arete: int = Field(default=5, ge=1, le=15)
+    attributes_json: Dict[str, Any] = Field(default_factory=dict)
+    abilities_json: Dict[str, Any] = Field(default_factory=dict)
+    disciplines_gifts_spheres_json: Dict[str, Any] = Field(default_factory=dict)
+    backgrounds_json: Dict[str, Any] = Field(default_factory=dict)
+    virtues_json: Dict[str, Any] = Field(default_factory=dict)
+    flaws_merits_json: Dict[str, Any] = Field(default_factory=dict)
+    health_levels_json: Dict[str, Any] = Field(default_factory=dict)
+    humanity_gnosis_arete: int = Field(default=7, ge=0, le=10)
+    willpower: int = Field(default=5, ge=0, le=10)
+    blood_pool_rage_quintessence: int = Field(default=10, ge=0, le=30)
+    backstory_text: Optional[str] = None
+    portrait_url: Optional[str] = None
+
+
+class CharacterResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    session_id: uuid.UUID
+    name: str
+    player_name: str
+    splat: Splat
+    clan_tribe_tradition: Optional[str]
+    generation_rank_arete: int
+    attributes_json: Dict[str, Any]
+    abilities_json: Dict[str, Any]
+    disciplines_gifts_spheres_json: Dict[str, Any]
+    willpower: int
+    blood_pool_rage_quintessence: int
+    humanity_gnosis_arete: int
+    health_levels_json: Dict[str, Any]
+    backstory_text: Optional[str]
+    portrait_url: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+3.3 Enums Module
+
+python — app/enums.py
+"""Centralized Enum definitions for the White Wolf Storyteller AI. Imported by both SQLAlchemy models and Pydantic schemas."""
+from __future__ import annotations
+
+from enum import Enum
+
+
+class Splat(str, Enum):
+    """World of Darkness game line / creature type."""
+    VAMPIRE = "vampire"
+    WEREWOLF = "werewolf"
+    MAGE = "mage"
+    CHANGELING = "changeling"
+    HUNTER = "hunter"
+    WRAITH = "wraith"
+    MUMMY = "mummy"
+    DEMON = "demon"
+    KINDRED_OF_THE_EAST = "kindred_of_the_east"
+    MORTAL = "mortal"
+    MIXED = "mixed"  # Multi-splat chronicles
+
+
+class SessionMode(str, Enum):
+    """Operational mode for a game session."""
+    SOLO = "solo"
+    GROUP = "group"
+    ASSISTANT_GM = "assistant_gm"
+
+
+class NPCDisposition(str, Enum):
+    """NPC attitude toward the player characters."""
+    HOSTILE = "hostile"
+    WARY = "wary"
+    NEUTRAL = "neutral"
+    FRIENDLY = "friendly"
+    ALLIED = "allied"
+    UNKNOWN = "unknown"
+
+
+class LoreCategory(str, Enum):
+    """Classification of an ingested lore chunk."""
+    RULE = "rule"
+    LORE = "lore"
+    POWER = "power"
+    LOCATION = "location"
+    FACTION = "faction"
+    NPC_TEMPLATE = "npc_template"
+    RITUAL = "ritual"
+    HISTORY = "history"
+    EQUIPMENT = "equipment"
+
+
+class PowerCategory(str, Enum):
+    """Supernatural power classification by splat system."""
+    DISCIPLINE = "discipline"  # Vampire
+    GIFT = "gift"              # Werewolf
+    SPHERE = "sphere"          # Mage
+    ART = "art"                # Changeling
+    NUMINA = "numina"          # Mortal psychics/thaumaturges
+    ARCANOI = "arcanoi"        # Wraith
+    LORE = "lore"              # Demon
+
+
+class EventType(str, Enum):
+    """Type of event recorded in the session event log."""
+    NARRATION = "narration"
+    PLAYER_ACTION = "player_action"
+    DICE_ROLL = "dice_roll"
+    NPC_ACTION = "npc_action"
+    SCENE_CHANGE = "scene_change"
+    STATE_UPDATE = "state_update"
+    GM_SUGGESTION = "gm_suggestion"
+    SYSTEM = "system"
+
+
+class HealthLevel(str, Enum):
+    """Standard World of Darkness health level track."""
+    HEALTHY = "Healthy"
+    BRUISED = "Bruised"
+    HURT = "Hurt"
+    INJURED = "Injured"
+    WOUNDED = "Wounded"
+    MAULED = "Mauled"
+    CRIPPLED = "Crippled"
+    INCAPACITATED = "Incapacitated"
+    DEAD = "Dead"
+
+
+class StateMachineState(str, Enum):
+    """Internal states for the narrative state machine."""
+    SCENE_OPEN = "scene_open"
+    PLAYER_ACTING = "player_acting"
+    NPC_REACTING = "npc_reacting"
+    COMBAT = "combat"
+    SOCIAL_CONFLICT = "social_conflict"
+    DOWNTIME = "downtime"
+    SCENE_TRANSITION = "scene_transition"
+    SESSION_END = "session_end"
+3.4 Alembic Migration Setup
+
+Alembic manages all database schema migrations. After creating or modifying SQLAlchemy models, generate a revision and apply it. The env.py file must import the Base metadata from your models so Alembic can detect changes automatically.
+bash — Alembic Setup Commands
+# Initialize Alembic (run once at project start)
+alembic init alembic
+
+# After model changes: auto-generate a migration
+alembic revision --autogenerate -m "create initial schema"
+
+# Apply all pending migrations
+alembic upgrade head
+
+# Rollback one revision
+alembic downgrade -1
+
+# View current migration history
+alembic history --verbose
+python — alembic/env.py (key snippet)
+"""Alembic environment — import all models so autogenerate can detect them."""
+from logging.config import fileConfig
+
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import create_async_engine
+from alembic import context
+
+# ?? CRITICAL: Import Base and ALL model modules ???????????????????????????
+from app.db.models import Base  # noqa: F401 — registers metadata
+import app.db.models  # noqa: F401 — ensures all tables are loaded
+
+config = context.config
+fileConfig(config.config_file_name)
+target_metadata = Base.metadata
+
+
+def run_migrations_online() -> None:
+    """Run migrations against a live database."""
+    from app.config import get_settings
+
+    settings = get_settings()
+
+    connectable = create_async_engine(
+        settings.DATABASE_URL,
+        poolclass=pool.NullPool,
+    )
+
+    async def do_run_migrations(connection):
+        context.configure(connection=connection, target_metadata=target_metadata)
+        async with context.begin_transaction():
+            await context.run_migrations()
+
+    import asyncio
+    asyncio.run(do_run_migrations(connectable))
+
+? WARNING — Never Edit Migration Files Manually
+Auto-generated migration files should not be hand-edited after they have been applied to any database (development or production). Always create a new revision for schema changes. Editing applied migrations will cause checksum mismatches and break alembic upgrade head on all existing deployments.
+
+Section 4 — Prompt Pack
+
+The prompts are the soul of the Storyteller AI — the words that transform a database of fragmented lore into an ancient, breathing narrative intelligence. All prompts follow a system + user template pattern. System prompts establish persona, constraints, and behavioral rules. User templates inject dynamic context: character sheets, scene state, retrieved lore chunks, NPC profiles, and player input. Prompts are modular — components are assembled by the PromptBuilder class, which pulls from the state engine and vector retrieval layer at runtime.
+
+? PHILOSOPHY NOTE
+Never include raw dice mechanics in AI narration. The Storyteller AI describes outcomes cinematically, not probability calculations. Rules references in prompts exist to inform the AI of narrative consequence ranges — not to have it narrate "roll Strength + Brawl difficulty 6" to players. That is the player's domain.
+4.1 Solo Player Mode Prompts
+
+System Prompt — Solo Storyteller
+text — System Prompt: Solo Storyteller
+You are the Storyteller — an ancient, world-weary narrator who has witnessed millennia of mortal folly and supernatural tragedy. You serve as the Game Master for a World of Darkness tabletop RPG session played by a single player. Your voice is atmospheric, gothic, and literary — equal parts Poe, Anne Rice, and Neil Gaiman. You speak in rich, evocative prose but never lose clarity of scene.
+
+CORE BEHAVIORAL RULES:
+1. TONE — Maintain the World of Darkness atmosphere at all times: moral ambiguity, personal horror, political intrigue, and the ever-present weight of eternity. The world is dark; hope is precious and costs something.
+
+2. IMMERSION — Never break the fourth wall. Never reference "the game," "the rules," "dice pools," or "mechanics" directly to the player. If a mechanical outcome is relevant, describe its narrative effect only (e.g., "Your grip fails you at the crucial moment" rather than "You botched the roll").
+
+3. LORE ACCURACY — You may only assert canonical facts about powers, factions, history, and lore that are present in the retrieved context chunks provided in the user message. If something is not in the retrieved lore, describe it atmospherically without inventing canonical details. Signal uncertainty with phrases like "the elders whisper that..." or "rumors persist..."
+
+4. SCENE CLOSURE — Every scene narration MUST end with exactly three (3) concrete player choices, presented as a numbered list below the narrative prose, preceded by the marker [CHOICES]:
+   Example:
+   [CHOICES]
+   1. [ACTION OPTION A]
+   2. [ACTION OPTION B]
+   3. [ACTION OPTION C]
+   Choices should represent meaningfully different approaches (social, physical, investigative, escape).
+
+5. CHARACTER STATS — When the player attempts actions that would be affected by their character's attributes, abilities, or supernatural powers (from the character sheet provided), factor these into your narrative outcome descriptions. A character with Strength 4 succeeds at feats of power; one with Strength 1 struggles. Do not narrate impossible successes.
+
+6. TENSION TRACKING — Maintain awareness of the session tension level (1-10) provided in the context. At tension 1-3: atmospheric, exploratory pacing. At 4-6: rising dread and complications. At 7-9: desperate urgency in prose. At 10: cinematic, breathless crisis narration.
+
+7. DOOM CLOCK — Reference the doom clock value (0-12) in your pacing. As doom advances, the consequences of inaction become more visible in the world around the character.
+
+8. DOWNTIME — If the scene type is DOWNTIME, shift to introspective, journal-entry tone. Prompt character reflection, relationship development, and personal goal pursuit.
+
+9. LENGTH — Scene narrations should be 150-350 words of prose. NPC dialogue should feel natural and distinct. Never pad; every sentence serves the scene.
+
+10. FORMATTING — Narration prose first. NPC dialogue in quotes. [CHOICES] block at the end. Never use markdown headers or bullet points within the narration prose itself.
+Scene Narration Template
+python — core/prompt_builder.py (scene narration template)
+SCENE_NARRATION_TEMPLATE = """\
+=== SESSION CONTEXT ===
+Session Name: {session_name}
+Setting: {setting}
+Scene: {scene_title}
+Location: {location}
+Time of Night: {time_of_night}
+Tension Level: {tension_level}/10
+Doom Clock: {doom_clock}/12
+Current State: {state_machine_state}
+
+=== ACTIVE CHARACTER ===
+Name: {character_name}  |  Player: {player_name}
+Splat: {splat}  |  Clan/Tribe/Tradition: {clan_tribe_tradition}
+Generation/Rank/Arete: {generation_rank_arete}
+Attributes: {attributes_summary}
+Key Abilities: {key_abilities}
+Powers: {powers_list}
+Current Health: {health_summary}
+Blood/Rage/Quintessence Pool: {pool_current}/{pool_max}
+Willpower: {willpower_current}/{willpower_max}
+Active Conditions: {active_conditions}
+
+=== ACTIVE NPCs IN SCENE ===
+{npc_list}
+
+=== RECENT SESSION EVENTS (last 5) ===
+{recent_events}
+
+=== RETRIEVED LORE CONTEXT ===
+{lore_chunks}
+
+=== PLAYER ACTION ===
+{player_input}
+
+---
+Narrate the outcome of the player's action. Remember: end with [CHOICES] listing 3 options.
+"""
+Combat Narration Template
+python — core/prompt_builder.py (combat template)
+COMBAT_NARRATION_TEMPLATE = """\
+=== COMBAT SCENE ===
+Location: {location}
+Round: {combat_round}
+Initiative Order: {initiative_order}
+
+=== COMBATANTS ===
+PLAYER CHARACTER:
+  {character_name} — Health: {pc_health} | Pool: {pc_pool} | Willpower: {pc_willpower}
+  Relevant Combat Abilities: {combat_abilities}
+  Active Powers: {active_powers}
+
+OPPONENTS:
+{opponent_block}
+
+=== PLAYER'S DECLARED ACTION ===
+{player_input}
+
+=== NARRATIVE RESOLUTION RULES ===
+- Resolve the declared action cinematically. Determine success or failure based on the character's relevant attributes and the opponent's capabilities (provided above).
+- Describe physical action in vivid, visceral, but not gratuitously gory prose.
+- Reference health level changes narratively (e.g., "The blow staggers you — your vision swims" for an Injured level hit) rather than using game stat names.
+- If a Discipline, Gift, or Sphere power is invoked, describe its manifestation atmospherically.
+- After resolving the current round's action, describe the battlefield state and end with [CHOICES].
+- Choices in combat may include: press the attack, attempt to flee, use a power, call for parley.
+"""
+Downtime / Reflection Template
+python — core/prompt_builder.py (downtime template)
+DOWNTIME_REFLECTION_TEMPLATE = """\
+=== DOWNTIME SCENE ===
+Character: {character_name} ({splat}, {clan_tribe_tradition})
+Time Period: {downtime_duration}
+Current Humanity/Gnosis/Arete: {humanity_rating}/10
+Chronicle Phase: {chronicle_phase}
+Recent Events Survived: {recent_traumatic_events}
+
+=== DOWNTIME CONTEXT ===
+{player_input}
+
+---
+Narrate this downtime scene in an introspective, journal-like voice. Focus on:
+- The character's emotional processing of recent events
+- Relationship developments (NPCs they've grown close to or grown apart from)
+- Small, human moments that illuminate the character's soul
+- Subtle signs of how their supernatural existence is changing them
+- Optional: a dream sequence, memory, or vision that foreshadows things to come
+
+End with a gentle prompt asking what the character focuses on during this quiet time, offering 3 introspective paths rather than action choices.
+"""
+4.2 Group Session Mode Prompts
+
+System Prompt — Multi-Player Coordinator
+text — System Prompt: Multi-Player Coordinator
+You are the Storyteller for a group World of Darkness session with multiple players. Your voice remains atmospheric and gothic, but you now coordinate a chorus of characters rather than a solo narrative.
+
+MULTI-PLAYER BEHAVIORAL RULES:
+1. CHARACTER ADDRESSING — When narrating an outcome or directing attention to a specific character, use the marker [CHARACTER NAME]: before addressing them. This signals to the Discord bot which player is being directly addressed.
+
+2. SPOTLIGHT MANAGEMENT — Distribute narrative focus equitably. If one character has been prominent in the last 2-3 exchanges, actively create hooks that draw other characters into the scene. No character should be a passive observer for more than 2 consecutive beats.
+
+3. TURN ORDER — In combat or highly structured social conflict scenes, maintain a clear initiative or turn order as provided in the context. Narrate results for the active character, then clearly signal whose turn is next with: [NEXT: CHARACTER_NAME]
+
+4. INTER-PC DYNAMICS — Acknowledge and amplify the interpersonal drama between player characters. NPC reactions to PC group dynamics enrich the scene. If PCs are divided, let the world notice.
+
+5. GROUP CHOICES — End scenes with choices that may affect different characters differently, or require group consensus. Format:
+   [GROUP CHOICES]
+   1. [OPTION A — particularly relevant for CHARACTER_NAME]
+   2. [OPTION B — the group decides together]
+   3. [OPTION C — any character can act independently]
+
+6. All other Solo rules (tone, lore accuracy, immersion, tension) apply equally here.
+Multi-Character Scene Template
+python — core/prompt_builder.py (multi-character scene)
+MULTI_CHARACTER_SCENE_TEMPLATE = """\
+=== GROUP SESSION CONTEXT ===
+Session: {session_name} | Mode: GROUP | Players: {player_count}
+Scene: {scene_title} | Location: {location} | Time: {time_of_night}
+Tension: {tension_level}/10 | Doom: {doom_clock}/12
+
+=== PLAYER CHARACTERS ===
+{character_block}
+# character_block is assembled as:
+# for each character in session.characters:
+#   "Name: {name} | Player: {player_name} | Splat: {splat}"
+#   "Health: {health} | Pool: {pool} | Willpower: {willpower}"
+#   "Key Powers: {powers}"
+#   "Active Conditions: {conditions}"
+#   "---"
+
+=== ACTIVE NPCs ===
+{npc_list}
+
+=== RECENT EVENTS ===
+{recent_events}
+
+=== RETRIEVED LORE ===
+{lore_chunks}
+
+=== ACTING CHARACTER ===
+{acting_character_name} (Player: {acting_player_name}) declares: {player_input}
+
+---
+Narrate the outcome. Address other characters by name where their reactions are relevant. End with [GROUP CHOICES].
+"""
+Inter-PC Conflict Template
+python — core/prompt_builder.py (inter-PC conflict)
+INTER_PC_CONFLICT_TEMPLATE = """\
+=== INTER-PC CONFLICT ===
+Conflict Type: {conflict_type}  # social / physical / political / philosophical
+Instigating Character: {instigator_name} (Player: {instigator_player})
+Responding Character: {responder_name} (Player: {responder_player})
+
+Instigator's Action/Statement: {instigator_input}
+Responder's Declared Response: {responder_input}
+
+Character Sheets (relevant stats only):
+{instigator_relevant_stats}
+{responder_relevant_stats}
+
+=== ARBITRATION RULES ===
+- Narrate the conflict outcome with fairness. Neither PC is automatically right.
+- If it is a social conflict, factor Manipulation, Empathy, Expression as relevant.
+- Physical PvP should be narrated at the level of consequence description only — not a blow-by-blow that makes one player feel victimized.
+- Offer a path to de-escalation in the [CHOICES] block.
+- Remind players (in-world, through NPC reactions) that Kindred/Garou/Mages who war among themselves provide opportunity to their enemies.
+"""
+4.3 Assistant GM Mode Prompts
+
+System Prompt — GM Co-Pilot
+text — System Prompt: GM Co-Pilot (Assistant GM Mode)
+You are an experienced co-Storyteller whispering suggestions to a human Game Master running a World of Darkness session. You are NOT narrating to players. You are a creative partner, a lore sage, and a tactical advisor — speaking only to the GM.
+
+YOUR OUTPUT FORMAT — Always use bracket annotations:
+  [SUGGESTION:] — A narrative or scene direction idea
+  [RULE:]       — A mechanical rules clarification (cite source book when possible)
+  [HOOK:]       — A plot hook, foreshadowing seed, or complication to introduce
+  [PACING:]     — Advice on session pacing, tension management, or spotlight balance
+  [NPC:]        — An NPC motivation, hidden agenda, or reaction suggestion
+  [LORE:]       — A canonical lore fact relevant to the scene (from retrieved context)
+
+BEHAVIORAL RULES:
+1. NEVER write narration directed at players. Your output goes to the GM only.
+2. Be concise but substantive. A suggestion without reasoning is unhelpful.
+3. Offer 2-3 options where possible — the GM chooses, you suggest.
+4. Cite source material when providing rules or lore: (V20, p.142) or (WtA20, p.88).
+5. Respect the GM's established chronicle. Work with what they've described; do not contradict their established fiction without noting the conflict.
+6. When a player action breaks or bends canonical rules, flag it gently under [RULE:].
+7. Maintain the gothic, politically complex World of Darkness sensibility in all suggestions — consequences are rarely simple, victories are rarely clean.
+Scene Suggestion Template
+python — core/prompt_builder.py (GM scene suggestion)
+GM_SCENE_SUGGESTION_TEMPLATE = """\
+=== GM BRIEF ===
+Scene Description: {scene_context}
+GM Question / Concern: {gm_question}
+Current Session State: Tension {tension}/10, Doom {doom}/12
+Active Factions in Scene: {active_factions}
+Player Characters Present: {pc_names}
+Recent Session Events: {recent_events}
+
+=== RETRIEVED LORE (relevant to scene) ===
+{lore_chunks}
+
+---
+Provide annotated GM suggestions using the bracket format. Address the GM's specific question first, then offer supplemental hooks and pacing advice.
+"""
+NPC Voice Generator Template
+python — core/prompt_builder.py (NPC voice generator)
+NPC_VOICE_TEMPLATE = """\
+=== NPC PROFILE ===
+Name: {npc_name}
+Splat / Type: {splat}
+Clan / Tribe / Tradition: {clan_tribe}
+Archetype: {archetype}
+Disposition toward PCs: {disposition}
+Current Goal in Scene: {current_goal}
+
+=== VOICE PROFILE ===
+Tone: {voice_tone}
+Speech Patterns: {speech_patterns}
+Vocabulary Level: {vocabulary_level}
+Accent / Dialect Notes: {accent_notes}
+Known Tells / Mannerisms: {mannerisms}
+
+=== BACKSTORY (relevant excerpt) ===
+{backstory_excerpt}
+
+=== SCENE CONTEXT ===
+{scene_context}
+
+=== GM REQUEST ===
+{gm_request}
+
+---
+[GM MODE — for Storyteller eyes only] Provide 3 dialogue options this NPC might speak, each reflecting a slightly different tactical or emotional approach while remaining fully in character.
+
+Label them:
+  OPTION A — [brief tactic description]
+  OPTION B — [brief tactic description]
+  OPTION C — [brief tactic description]
+
+Then add one line of [NPC:] annotation with a hidden motivation or body language note the GM can use to enrich their portrayal.
+"""
+Encounter Generator Template
+python — core/prompt_builder.py (encounter generator)
+ENCOUNTER_GENERATOR_TEMPLATE = """\
+=== ENCOUNTER PARAMETERS ===
+Location: {location}
+Time of Night: {time_of_night}
+Atmospheric Mood: {mood}
+Threat Level: {threat_level}/5 ({threat_label})
+Active Factions: {active_factions}
+Player Characters: {pc_summary}
+Session Tension: {tension}/10  |  Doom Clock: {doom}/12
+
+=== RETRIEVED LORE (location / faction relevant) ===
+{lore_chunks}
+
+---
+[GM MODE — for Storyteller eyes only] Generate a complete encounter using the following structure:
+
+OPENING DESCRIPTION:
+[150-200 words of atmospheric scene-setting prose the GM can read aloud or adapt]
+
+NPC MOTIVATIONS:
+[Bullet list: each NPC present, their hidden goal, and what they want from this scene]
+
+ESCALATION PATHS:
+[3 ways this encounter can get worse, triggered by player inaction or specific actions]
+
+POSSIBLE RESOLUTIONS:
+[3-5 resolution paths ranging from violent to diplomatic to clever/unconventional]
+
+XP REWARD SUGGESTION:
+[1-3 XP with rationale: what earns what, and what learning moments are present]
+
+LORE HOOKS:
+[2-3 clues or reveals that can be seeded here to advance the larger chronicle]
+"""
+Lore Lookup Template
+python — core/prompt_builder.py (lore lookup wrapper)
+LORE_LOOKUP_TEMPLATE = """\
+=== LORE QUERY ===
+GM Query: {gm_query}
+Source Chunk Retrieved:
+---
+{retrieved_chunk}
+---
+Source: {source_book}, p.{page_number}
+
+---
+[GM MODE] Summarize the above lore chunk in 2-3 sentences the GM can immediately use at the table.
+
+Then add:
+[LORE:] Key canonical fact stated directly.
+[HOOK:] One way this lore could become a plot point in the current chronicle.
+
+If the chunk is mechanical (a rule), add:
+[RULE:] Plain-English summary of the mechanic and when it applies.
+"""
+4.4 Prompt Utilities (Python)
+
+python — app/core/prompt_builder.py
+"""PromptBuilder — assembles context-rich prompts for the Storyteller Engine. Called before every LLM request to construct system + user message pairs."""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from app.db.models import Character, GameSession, NPC
+from app.enums import SessionMode
+from app.core.templates import (
+    SCENE_NARRATION_TEMPLATE,
+    COMBAT_NARRATION_TEMPLATE,
+    DOWNTIME_REFLECTION_TEMPLATE,
+    MULTI_CHARACTER_SCENE_TEMPLATE,
+    GM_SCENE_SUGGESTION_TEMPLATE,
+    NPC_VOICE_TEMPLATE,
+    ENCOUNTER_GENERATOR_TEMPLATE,
+    LORE_LOOKUP_TEMPLATE,
+    SOLO_SYSTEM_PROMPT,
+    GROUP_SYSTEM_PROMPT,
+    ASSISTANT_GM_SYSTEM_PROMPT,
+)
+
+
+class PromptBuilder:
+    """
+    Assembles complete prompt objects (system + user) for all Storyteller AI modes.
+    Accepts pre-fetched lore chunks, session state, and character data.
+    """
+
+    # ?? System Prompt Selection ????????????????????????????????????????????
+    def build_system_prompt(self, mode: SessionMode, session: GameSession) -> str:
+        """
+        Returns the appropriate system prompt string for the given session mode.
+        Injects session-level customizations (chronicle name, setting splat).
+        """
+        base_prompts = {
+            SessionMode.SOLO: SOLO_SYSTEM_PROMPT,
+            SessionMode.GROUP: GROUP_SYSTEM_PROMPT,
+            SessionMode.ASSISTANT_GM: ASSISTANT_GM_SYSTEM_PROMPT,
+        }
+        base = base_prompts.get(mode, SOLO_SYSTEM_PROMPT)
+
+        # Inject chronicle name as context header
+        header = f"[CHRONICLE: {session.name} | SETTING: {session.setting.value.upper()}]\n\n"
+        return header + base
+
+    # ?? Narration Prompt ??????????????????????????????????????????????????
+    def build_narration_prompt(
+        self,
+        session: GameSession,
+        player_input: str,
+        lore_chunks: List[str],
+        acting_character: Optional[Character] = None,
+        combat_mode: bool = False,
+        downtime_mode: bool = False,
+    ) -> str:
+        """
+        Assembles the user-turn prompt for narration.
+        Selects template (scene / combat / downtime) based on session state flags.
+        """
+        state = session.state_json or {}
+        lore_text = self._format_lore_chunks(lore_chunks)
+        npc_text = self._format_npcs(state.get("active_npcs", []))
+        recent_events = self._format_recent_events(state.get("scene_history", [])[-5:])
+
+        if downtime_mode:
+            template = DOWNTIME_REFLECTION_TEMPLATE
+        elif combat_mode:
+            template = COMBAT_NARRATION_TEMPLATE
+        elif session.mode == SessionMode.GROUP:
+            template = MULTI_CHARACTER_SCENE_TEMPLATE
+        else:
+            template = SCENE_NARRATION_TEMPLATE
+
+        char = acting_character
+        return template.format(
+            session_name=session.name,
+            setting=session.setting.value,
+            scene_title=state.get("scene_title", "Unknown Scene"),
+            location=state.get("location", "Unknown Location"),
+            time_of_night=state.get("time_of_night", "Unknown Hour"),
+            tension_level=state.get("tension_level", 5),
+            doom_clock=state.get("doom_clock", 0),
+            state_machine_state=state.get("machine_state", "scene_open"),
+            character_name=char.name if char else "Unknown",
+            player_name=char.player_name if char else "Unknown",
+            splat=char.splat.value if char else "unknown",
+            clan_tribe_tradition=char.clan_tribe_tradition if char else "",
+            generation_rank_arete=char.generation_rank_arete if char else 5,
+            attributes_summary=self._summarize_attributes(char),
+            key_abilities=self._summarize_abilities(char),
+            powers_list=self._summarize_powers(char),
+            health_summary=self._summarize_health(char),
+            pool_current=char.blood_pool_rage_quintessence if char else 0,
+            pool_max=10,
+            willpower_current=char.willpower if char else 5,
+            willpower_max=10,
+            active_conditions=state.get("active_conditions", "None"),
+            npc_list=npc_text,
+            recent_events=recent_events,
+            lore_chunks=lore_text,
+            player_input=player_input,
+            # Group mode extras
+            player_count=len(state.get("player_characters", [])),
+            character_block=self._format_character_block(session),
+            acting_character_name=char.name if char else "Player",
+            acting_player_name=char.player_name if char else "Player",
+        )
+
+    # ?? NPC Voice Prompt ??????????????????????????????????????????????????
+    def build_npc_voice_prompt(self, npc: NPC, context: str) -> str:
+        """Assembles the user-turn prompt for NPC dialogue generation."""
+        vp = npc.voice_profile_json or {}
+        return NPC_VOICE_TEMPLATE.format(
+            npc_name=npc.name,
+            splat=npc.splat.value if npc.splat else "unknown",
+            clan_tribe=npc.clan_tribe or "Unknown",
+            archetype=npc.archetype or "Unknown",
+            disposition=npc.disposition.value,
+            current_goal="[Not specified — infer from secrets]",
+            voice_tone=vp.get("tone", "measured"),
+            speech_patterns=vp.get("speech_patterns", "formal"),
+            vocabulary_level=vp.get("vocabulary_level", "educated"),
+            accent_notes=vp.get("accent_notes", "none"),
+            mannerisms=vp.get("mannerisms", "none noted"),
+            backstory_excerpt=str(npc.secrets_json)[:300],
+            scene_context=context,
+            gm_request="Generate dialogue options for this NPC in the current scene.",
+        )
+
+    # ?? Encounter Prompt ??????????????????????????????????????????????????
+    def build_encounter_prompt(
+        self,
+        location: str,
+        mood: str,
+        threat_level: int,
+        active_factions: List[str],
+        session: Optional[GameSession] = None,
+        lore_chunks: Optional[List[str]] = None,
+    ) -> str:
+        """Assembles the encounter generation prompt."""
+        threat_labels = {1: "Trivial", 2: "Minor", 3: "Moderate", 4: "Severe", 5: "Catastrophic"}
+        state = session.state_json if session else {}
+        return ENCOUNTER_GENERATOR_TEMPLATE.format(
+            location=location,
+            time_of_night=state.get("time_of_night", "witching hour"),
+            mood=mood,
+            threat_level=threat_level,
+            threat_label=threat_labels.get(threat_level, "Unknown"),
+            active_factions=", ".join(active_factions) if active_factions else "None specified",
+            pc_summary=self._format_pc_summary(session),
+            tension=state.get("tension_level", 5),
+            doom=state.get("doom_clock", 0),
+            lore_chunks=self._format_lore_chunks(lore_chunks or []),
+        )
+
+    # ?? Private Helpers ???????????????????????????????????????????????????
+    def _format_lore_chunks(self, chunks: List[str]) -> str:
+        if not chunks:
+            return "[No lore retrieved — use atmospheric description only]"
+        return "\n---\n".join(f"[Chunk {i+1}]: {chunk}" for i, chunk in enumerate(chunks))
+
+    def _format_npcs(self, active_npcs: List[Dict]) -> str:
+        if not active_npcs:
+            return "None active in scene."
+        lines = []
+        for npc in active_npcs:
+            lines.append(
+                f"  {npc.get('name', 'Unknown')} — {npc.get('disposition', 'neutral')} | "
+                f"Goal: {npc.get('current_goal', 'unknown')}"
+            )
+        return "\n".join(lines)
+
+    def _format_recent_events(self, events: List[Dict]) -> str:
+        if not events:
+            return "No prior events recorded."
+        lines = []
+        for evt in events:
+            lines.append(f"  [{evt.get('event_type', 'event')}] {evt.get('summary', '')}")
+        return "\n".join(lines)
+
+    def _summarize_attributes(self, char: Optional[Character]) -> str:
+        if not char or not char.attributes_json:
+            return "Unknown"
+        attrs = char.attributes_json
+        return (
+            f"STR {attrs.get('strength', '?')} DEX {attrs.get('dexterity', '?')} "
+            f"STA {attrs.get('stamina', '?')} | "
+            f"CHA {attrs.get('charisma', '?')} MAN {attrs.get('manipulation', '?')} "
+            f"APP {attrs.get('appearance', '?')} | "
+            f"PER {attrs.get('perception', '?')} INT {attrs.get('intelligence', '?')} "
+            f"WIT {attrs.get('wits', '?')}"
+        )
+
+    def _summarize_abilities(self, char: Optional[Character]) -> str:
+        if not char or not char.abilities_json:
+            return "Unknown"
+        ab = char.abilities_json
+        relevant = {k: v for k, v in ab.items() if isinstance(v, int) and v >= 2}
+        return ", ".join(f"{k.capitalize()} {v}" for k, v in list(relevant.items())[:8])
+
+    def _summarize_powers(self, char: Optional[Character]) -> str:
+        if not char or not char.disciplines_gifts_spheres_json:
+            return "None"
+        powers = char.disciplines_gifts_spheres_json
+        return ", ".join(f"{k} {v}" for k, v in list(powers.items())[:6])
+
+    def _summarize_health(self, char: Optional[Character]) -> str:
+        if not char or not char.health_levels_json:
+            return "Unknown"
+        hl = char.health_levels_json
+        return f"Current: {hl.get('current_level', 'Healthy')} | Aggravated: {hl.get('aggravated', 0)}"
+
+    def _format_character_block(self, session: Optional[GameSession]) -> str:
+        if not session or not session.characters:
+            return "No characters registered."
+        lines = []
+        for char in session.characters:
+            lines.append(
+                f"Name: {char.name} | Player: {char.player_name} | "
+                f"Splat: {char.splat.value} | Health: {self._summarize_health(char)}\n"
+                f"Pool: {char.blood_pool_rage_quintessence} | WP: {char.willpower} | "
+                f"Powers: {self._summarize_powers(char)}\n---"
+            )
+        return "\n".join(lines)
+
+    def _format_pc_summary(self, session: Optional[GameSession]) -> str:
+        if not session or not session.characters:
+            return "Unknown"
+        return ", ".join(
+            f"{c.name} ({c.splat.value})" for c in session.characters
+        )
+
+Section 5 — PDF Ingestion Pipeline
+
+5.1 Pipeline Overview
+
+The ingestion pipeline is the Storyteller AI's library — the mechanism by which raw PDF sourcebooks are transformed into a structured, queryable knowledge graph that grounds every narration in canonical lore. The pipeline operates in five stages, each implemented as a discrete Python module, chained together as an asynchronous Celery task.
+
+StageModuleInputOutput1. Extractionpdf_parser.pyRaw PDF fileList of dicts: {page, chapter, section, text}2. Chunkingchunk_embedder.pyExtracted text dictsList of semantic chunks with category labels3. Embeddingchunk_embedder.pyText chunksOpenAI embedding vectors (1536 dim)4. Vector Storagevector_store.pyEmbeddings + metadataChromaDB documents with metadata index5. Metadata Recordchunk_embedder.pyChunk metadataPostgreSQL LoreEntry rows via SQLAlchemy
+
+? COPYRIGHT NOTICE
+This pipeline is designed for use with PDFs you own or have licensed rights to. Ingesting copyrighted White Wolf / Onyx Path / Paradox Interactive materials is subject to their intellectual property terms. Consult legal counsel before deploying this system with commercially published sourcebooks. The system itself does not circumvent copy protection — it processes only text content the user provides.
+5.2 pdf_parser.py — Full Code
+
+python — app/ingestion/pdf_parser.py
+"""PDF Parser for White Wolf sourcebooks. Uses PyMuPDF (fitz) for text extraction with font metadata. Tailored to handle common OCR artifacts and layout patterns in older White Wolf PDFs and modern Onyx Path releases."""
+from __future__ import annotations
+
+import re
+import unicodedata
+from pathlib import Path
+from typing import Optional
+
+import fitz  # PyMuPDF
+
+# ?? Constants ????????????????????????????????????????????????????????????????
+TEXT_DENSITY_THRESHOLD = 0.05
+HEADER_FONT_SIZE_THRESHOLD = 13.0
+
+PAGE_HEADER_FOOTER_PATTERNS = [
+    re.compile(r"^\d{1,3}$"),
+    re.compile(r"^(Chapter|CHAPTER)\s+\d+"),
+    re.compile(r"^(White Wolf|Onyx Path|Paradox)", re.IGNORECASE),
+    re.compile(r"World of Darkness", re.IGNORECASE),
+]
+
+LIGATURE_MAP = {
+    "\ufb01": "fi",
+    "\ufb02": "fl",
+    "\ufb00": "ff",
+    "\ufb03": "ffi",
+    "\ufb04": "ffl",
+    "\u2019": "'",
+    "\u2018": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2013": "-",
+    "\u2014": "--",
+    "\u2026": "...",
+}
+
+
+class WhiteWolfPDFParser:
+    """Extracts structured text from White Wolf/Onyx Path sourcebook PDFs."""
+
+    def __init__(self, pdf_path: str | Path, source_book_name: str):
+        self.pdf_path = Path(pdf_path)
+        self.source_book_name = source_book_name
+        self._doc: Optional[fitz.Document] = None
+
+    def __enter__(self) -> "WhiteWolfPDFParser":
+        self._doc = fitz.open(str(self.pdf_path))
+        return self
+
+    def __exit__(self, *args) -> None:
+        if self._doc:
+            self._doc.close()
+
+    def parse(self) -> list[dict]:
+        """Main entry point returning structured text segments."""
+        if not self._doc:
+            raise RuntimeError("Parser not opened. Use as context manager.")
+
+        results = []
+        current_chapter = None
+        current_section = None
+
+        for page_num in range(len(self._doc)):
+            page = self._doc[page_num]
+
+            if self._is_artwork_heavy(page):
+                continue
+
+            blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_LIGATURES)["blocks"]
+
+            for block in blocks:
+                if block.get("type") != 0:
+                    continue
+
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        raw_text = span.get("text", "").strip()
+                        if not raw_text:
+                            continue
+
+                        cleaned = self._clean_text(raw_text)
+                        if not cleaned:
+                            continue
+
+                        font_size = span.get("size", 11.0)
+                        font_flags = span.get("flags", 0)
+                        is_bold = bool(font_flags & 2**4)
+                        is_header = (
+                            font_size >= HEADER_FONT_SIZE_THRESHOLD and is_bold and len(cleaned) < 120
+                        )
+
+                        if is_header:
+                            if font_size >= 18.0:
+                                current_chapter = cleaned
+                                current_section = None
+                            else:
+                                current_section = cleaned
+
+                        results.append({
+                            "page": page_num + 1,
+                            "chapter": current_chapter,
+                            "section": current_section,
+                            "text": cleaned,
+                            "source_book": self.source_book_name,
+                            "is_header": is_header,
+                            "font_size": round(font_size, 1),
+                        })
+
+        return self._merge_into_paragraphs(results)
+
+    def _is_artwork_heavy(self, page: fitz.Page) -> bool:
+        text = page.get_text("text")
+        if not text:
+            return True
+        rect = page.rect
+        page_area = rect.width * rect.height
+        density = len(text) / max(page_area, 1)
+        return density < TEXT_DENSITY_THRESHOLD
+
+    def _clean_text(self, text: str) -> str:
+        for ligature, replacement in LIGATURE_MAP.items():
+            text = text.replace(ligature, replacement)
+
+        text = unicodedata.normalize("NFKC", text)
+
+        stripped = text.strip()
+        for pattern in PAGE_HEADER_FOOTER_PATTERNS:
+            if pattern.match(stripped):
+                return ""
+
+        text = re.sub(r"\s+", " ", text).strip()
+
+        if re.fullmatch(r"[•??\-–—_]+", text):
+            return ""
+
+        return text
+
+    def _merge_into_paragraphs(self, segments: list[dict]) -> list[dict]:
+        if not segments:
+            return []
+
+        merged = []
+        buffer = []
+        current_meta = segments[0].copy()
+
+        for seg in segments:
+            if seg["is_header"]:
+                if buffer:
+                    combined = current_meta.copy()
+                    combined["text"] = " ".join(buffer)
+                    combined["is_header"] = False
+                    merged.append(combined)
+                    buffer = []
+                merged.append(seg)
+                current_meta = seg.copy()
+            else:
+                if seg["page"] == current_meta["page"] and seg["section"] == current_meta["section"]:
+                    buffer.append(seg["text"])
+                else:
+                    if buffer:
+                        combined = current_meta.copy()
+                        combined["text"] = " ".join(buffer)
+                        combined["is_header"] = False
+                        merged.append(combined)
+                        buffer = []
+                    buffer = [seg["text"]]
+                    current_meta = seg.copy()
+
+        if buffer:
+            combined = current_meta.copy()
+            combined["text"] = " ".join(buffer)
+            combined["is_header"] = False
+            merged.append(combined)
+
+        return merged
+
+
+def parse_pdf(pdf_path: str, source_book_name: str) -> list[dict]:
+    """Convenience function wrapping the parser context manager."""
+    with WhiteWolfPDFParser(pdf_path, source_book_name) as parser:
+        return parser.parse()
+5.3 chunk_embedder.py — Full Code
+
+python — app/ingestion/chunk_embedder.py
+"""Chunk Embedder — splits extracted PDF text into semantic chunks, classifies them by category, generates OpenAI embeddings, and writes to ChromaDB + PostgreSQL."""
+from __future__ import annotations
+
+import re
+import uuid
+from typing import Optional
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from openai import OpenAI
+
+from app.config import get_settings
+from app.enums import LoreCategory, Splat
+from app.ingestion.vector_store import get_chroma_client
+
+settings = get_settings()
+
+RULE_PATTERN = re.compile(
+    r"(dice pool|difficulty|successes?|botch|roll|system:|cost:|action:|resisted)",
+    re.IGNORECASE,
+)
+POWER_PATTERN = re.compile(
+    r"(discipline|gift|sphere|art|numina|arcanoi|level \d|•{1,5}|dots?:)",
+    re.IGNORECASE,
+)
+LOCATION_PATTERN = re.compile(
+    r"(haven|elysium|sept|chantry|freehold|caern|node|trod|haunt|citadel)",
+    re.IGNORECASE,
+)
+NPC_TEMPLATE_PATTERN = re.compile(
+    r"(nature:|demeanor:|clan:|tribe:|tradition:|attributes:|abilities:|background:)",
+    re.IGNORECASE,
+)
+RITUAL_PATTERN = re.compile(
+    r"(ritual|rite|thaumaturgy|path of |rote:|level \d ritual)",
+    re.IGNORECASE,
+)
+
+
+def classify_chunk(text: str) -> LoreCategory:
+    if RITUAL_PATTERN.search(text):
+        return LoreCategory.RITUAL
+    if POWER_PATTERN.search(text) and RULE_PATTERN.search(text):
+        return LoreCategory.POWER
+    if RULE_PATTERN.search(text):
+        return LoreCategory.RULE
+    if NPC_TEMPLATE_PATTERN.search(text):
+        return LoreCategory.NPC_TEMPLATE
+    if LOCATION_PATTERN.search(text):
+        return LoreCategory.LOCATION
+    return LoreCategory.LORE
+
+
+def detect_splat_relevance(text: str, chapter: Optional[str]) -> list[str]:
+    combined = f"{text} {chapter or ''}".lower()
+    found = []
+    splat_keywords = {
+        Splat.VAMPIRE: ["kindred", "vampire", "embrace", "blood pool", "torpor", "clan"],
+        Splat.WEREWOLF: ["garou", "werewolf", "rage", "gnosis", "caern", "tribe", "gift"],
+        Splat.MAGE: ["mage", "awakened", "sphere", "quintessence", "paradox", "tradition"],
+        Splat.CHANGELING: ["changeling", "fae", "glamour", "dreaming", "seeming", "kith"],
+        Splat.HUNTER: ["hunter", "edge", "creed", "imbued"],
+        Splat.WRAITH: ["wraith", "shadow", "corpus", "pathos", "haunt", "arcanoi"],
+    }
+    for splat, keywords in splat_keywords.items():
+        if any(kw in combined for kw in keywords):
+            found.append(splat.value)
+    return found if found else ["universal"]
+
+
+class ChunkEmbedder:
+    """Handles text chunking, embedding generation, and storage."""
+
+    def __init__(self, source_book: str, splat: Optional[str] = None):
+        self.source_book = source_book
+        self.splat = splat
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=800,
+            chunk_overlap=150,
+            separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+        )
+        self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.chroma_client = get_chroma_client()
+        self.collection = self.chroma_client.get_or_create_collection(
+            name=settings.CHROMA_COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+    def embed_segments(self, segments: list[dict]) -> list[dict]:
+        body_segments = [s for s in segments if not s.get("is_header")]
+        full_texts = [s["text"] for s in body_segments]
+        combined = "\n\n".join(full_texts)
+
+        raw_chunks = self.splitter.split_text(combined)
+        lore_entries = []
+
+        for i, chunk_text in enumerate(raw_chunks):
+            if len(chunk_text.strip()) < 50:
+                continue
+
+            category = classify_chunk(chunk_text)
+            splat_relevance = detect_splat_relevance(
+                chunk_text,
+                segments[min(i, len(segments) - 1)].get("chapter"),
+            )
+
+            embedding_response = self.openai_client.embeddings.create(
+                input=chunk_text,
+                model=settings.OPENAI_EMBEDDING_MODEL,
+            )
+            embedding = embedding_response.data[0].embedding
+            chunk_id = str(uuid.uuid4())
+
+            ref_seg = segments[min(i * max(len(segments) // max(len(raw_chunks), 1), 1), len(segments) - 1)]
+
+            metadata = {
+                "source_book": self.source_book,
+                "page": ref_seg.get("page", 0),
+                "chapter": ref_seg.get("chapter") or "",
+                "section": ref_seg.get("section") or "",
+                "category": category.value,
+                "splat_relevance": ",".join(splat_relevance),
+                "chunk_index": i,
+            }
+
+            self.collection.add(
+                ids=[chunk_id],
+                embeddings=[embedding],
+                documents=[chunk_text],
+                metadatas=[metadata],
+            )
+
+            lore_entries.append({
+                "id": chunk_id,
+                "title": f"{self.source_book} — {ref_seg.get('section') or ref_seg.get('chapter') or 'Passage'}",
+                "source_book": self.source_book,
+                "page_number": ref_seg.get("page"),
+                "category": category,
+                "content_text": chunk_text,
+                "embedding_id": chunk_id,
+                "tags_json": splat_relevance,
+                "splat_relevance_json": splat_relevance,
+            })
+
+        return lore_entries
+5.4 vector_store.py — Full Code
+
+python — app/ingestion/vector_store.py
+"""ChromaDB client wrapper for the Storyteller AI vector store. Provides async-compatible helpers for initialization, search, and management."""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+
+from app.config import get_settings
+
+settings = get_settings()
+
+_chroma_client: Optional[chromadb.HttpClient] = None
+
+
+async def init_chroma() -> None:
+    """Initializes the ChromaDB HTTP client and stores it as a singleton."""
+    global _chroma_client
+    _chroma_client = chromadb.HttpClient(
+        host=settings.CHROMA_HOST,
+        port=settings.CHROMA_PORT,
+        settings=ChromaSettings(anonymized_telemetry=False),
+    )
+    _chroma_client.heartbeat()
+
+
+def get_chroma_client() -> chromadb.HttpClient:
+    """Returns the initialized ChromaDB client singleton."""
+    if _chroma_client is None:
+        raise RuntimeError("ChromaDB client not initialized. Ensure init_chroma() was called.")
+    return _chroma_client
+
+
+def add_chunks(
+    documents: List[str],
+    embeddings: List[List[float]],
+    metadatas: List[Dict[str, Any]],
+    ids: List[str],
+    collection_name: Optional[str] = None,
+) -> None:
+    client = get_chroma_client()
+    col_name = collection_name or settings.CHROMA_COLLECTION_NAME
+    collection = client.get_or_create_collection(
+        name=col_name,
+        metadata={"hnsw:space": "cosine"},
+    )
+    collection.add(
+        ids=ids,
+        embeddings=embeddings,
+        documents=documents,
+        metadatas=metadatas,
+    )
+
+
+def similarity_search(
+    query_embedding: List[float],
+    k: int = 5,
+    filter_metadata: Optional[Dict[str, Any]] = None,
+    collection_name: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    client = get_chroma_client()
+    col_name = collection_name or settings.CHROMA_COLLECTION_NAME
+
+    try:
+        collection = client.get_collection(name=col_name)
+    except Exception:
+        return []
+
+    query_kwargs: Dict[str, Any] = {
+        "query_embeddings": [query_embedding],
+        "n_results": k,
+        "include": ["documents", "metadatas", "distances"],
+    }
+    if filter_metadata:
+        query_kwargs["where"] = filter_metadata
+
+    results = collection.query(**query_kwargs)
+
+    output = []
+    if results and results.get("ids"):
+        for i, doc_id in enumerate(results["ids"][0]):
+            output.append({
+                "id": doc_id,
+                "document": results["documents"][0][i],
+                "metadata": results["metadatas"][0][i],
+                "distance": results["distances"][0][i],
+            })
+    return output
+
+
+def delete_collection(collection_name: Optional[str] = None) -> None:
+    client = get_chroma_client()
+    col_name = collection_name or settings.CHROMA_COLLECTION_NAME
+    client.delete_collection(name=col_name)
+
+
+def get_collection_stats(collection_name: Optional[str] = None) -> Dict[str, Any]:
+    client = get_chroma_client()
+    col_name = collection_name or settings.CHROMA_COLLECTION_NAME
+    try:
+        collection = client.get_collection(name=col_name)
+        return {"name": col_name, "count": collection.count()}
+    except Exception:
+        return {"name": col_name, "count": 0, "status": "not_found"}
+5.5 ingestion_tasks.py — Celery Task
+
+python — app/tasks/ingestion_tasks.py
+"""Celery tasks for the PDF ingestion pipeline. Chains: pdf_parser ? chunk_embedder ? vector_store ? DB write. Progress is tracked via Celery task state for API polling."""
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+from celery import Task
+from celery.utils.log import get_task_logger
+
+from app.config import get_settings
+from app.ingestion.pdf_parser import parse_pdf
+from app.ingestion.chunk_embedder import ChunkEmbedder
+from app.tasks.celery_app import celery_app
+
+logger = get_task_logger(__name__)
+settings = get_settings()
+
+
+class IngestionTask(Task):
+    """Base task class with progress tracking helpers."""
+    abstract = True
+
+    def update_progress(self, current: int, total: int, status: str) -> None:
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "current": current,
+                "total": total,
+                "status": status,
+                "percent": int((current / max(total, 1)) * 100),
+            },
+        )
+
+
+@celery_app.task(
+    bind=True,
+    base=IngestionTask,
+    name="tasks.ingest_pdf",
+    queue="ingestion",
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+)
+def ingest_pdf_task(
+    self: IngestionTask,
+    file_path: str,
+    source_book_name: str,
+    splat: str,
+) -> dict:
+    """Full PDF ingestion pipeline as a single Celery task."""
+    logger.info(f"Beginning ingestion: {source_book_name}")
+
+    self.update_progress(0, 100, f"Parsing PDF: {source_book_name}")
+    try:
+        segments = parse_pdf(file_path, source_book_name)
+        logger.info(f"Extracted {len(segments)} text segments from {source_book_name}")
+    except Exception as exc:
+        logger.error(f"PDF parsing failed for {file_path}: {exc}")
+        raise self.retry(exc=exc)
+
+    self.update_progress(25, 100, "Chunking and embedding text...")
+    try:
+        embedder = ChunkEmbedder(source_book=source_book_name, splat=splat)
+        lore_entries = embedder.embed_segments(segments)
+        logger.info(f"Created {len(lore_entries)} embedded chunks")
+    except Exception as exc:
+        logger.error(f"Embedding failed for {source_book_name}: {exc}")
+        raise self.retry(exc=exc)
+
+    self.update_progress(75, 100, "Writing LoreEntry records to database...")
+    try:
+        lore_entries_created = _write_lore_entries_sync(lore_entries)
+    except Exception as exc:
+        logger.error(f"Database write failed: {exc}")
+        raise self.retry(exc=exc)
+
+    self.update_progress(95, 100, "Cleaning up temp files...")
+    try:
+        Path(file_path).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    self.update_progress(100, 100, "Ingestion complete.")
+    logger.info(f"Ingestion complete: {source_book_name} — {len(lore_entries)} chunks")
+
+    return {
+        "status": "complete",
+        "source_book": source_book_name,
+        "segments_parsed": len(segments),
+        "chunks_created": len(lore_entries),
+        "lore_entries_created": lore_entries_created,
+    }
+
+
+def _write_lore_entries_sync(lore_entries: list[dict]) -> int:
+    """Synchronous wrapper for async DB write used within Celery worker context."""
+    from app.db.session import AsyncSessionLocal
+    from app.db.models import LoreEntry
+
+    async def _write():
+        written = 0
+        async with AsyncSessionLocal() as session:
+            for entry_data in lore_entries:
+                entry = LoreEntry(
+                    id=entry_data["id"],
+                    title=entry_data["title"],
+                    source_book=entry_data["source_book"],
+                    page_number=entry_data.get("page_number"),
+                    category=entry_data["category"],
+                    content_text=entry_data["content_text"],
+                    embedding_id=entry_data["embedding_id"],
+                    tags_json=entry_data["tags_json"],
+                    splat_relevance_json=entry_data["splat_relevance_json"],
+                )
+                session.add(entry)
+                written += 1
+            await session.commit()
+        return written
+
+    return asyncio.run(_write())
+5.6 Ingestion API Route
+
+python — app/api/v1/routes/ingestion.py
+"""PDF ingestion upload and status endpoints."""
+from __future__ import annotations
+
+import uuid
+from pathlib import Path
+
+from celery.result import AsyncResult
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel
+
+from app.config import get_settings
+from app.enums import Splat
+from app.tasks.ingestion_tasks import ingest_pdf_task
+
+router = APIRouter()
+settings = get_settings()
+
+
+class IngestionStartResponse(BaseModel):
+    task_id: str
+    source_book: str
+    status: str
+    message: str
+
+
+class IngestionStatusResponse(BaseModel):
+    task_id: str
+    status: str
+    percent: int
+    current_step: str
+    result: dict | None
+
+
+@router.post(
+    "/upload",
+    response_model=IngestionStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload a PDF sourcebook for ingestion",
+)
+async def upload_pdf(
+    file: UploadFile = File(..., description="PDF sourcebook file"),
+    source_book_name: str = Form(..., description="Human-readable book title"),
+    splat: Splat = Form(default=Splat.MIXED, description="Primary game line/splat"),
+) -> IngestionStartResponse:
+    """Accepts a PDF upload, saves it to temp storage, and fires the Celery task."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are accepted for ingestion.",
+        )
+
+    content = await file.read()
+    size_mb = len(content) / (1024 * 1024)
+    if size_mb > settings.MAX_PDF_SIZE_MB:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum size of {settings.MAX_PDF_SIZE_MB}MB.",
+        )
+
+    upload_dir = Path(settings.PDF_UPLOAD_DIR)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    temp_filename = f"{uuid.uuid4()}_{file.filename}"
+    temp_path = upload_dir / temp_filename
+
+    with open(temp_path, "wb") as f:
+        f.write(content)
+
+    task = ingest_pdf_task.apply_async(
+        args=[str(temp_path), source_book_name, splat.value],
+        queue="ingestion",
+    )
+
+    return IngestionStartResponse(
+        task_id=task.id,
+        source_book=source_book_name,
+        status="queued",
+        message=f"Ingestion task queued for '{source_book_name}'. Poll /ingestion/status/{task.id} for progress.",
+    )
+
+
+@router.get(
+    "/status/{task_id}",
+    response_model=IngestionStatusResponse,
+    summary="Check ingestion task progress",
+)
+async def ingestion_status(task_id: str) -> IngestionStatusResponse:
+    """Polls the Celery task result backend for ingestion progress."""
+    result = AsyncResult(task_id)
+    state = result.state
+
+    if state == "PENDING":
+        return IngestionStatusResponse(
+            task_id=task_id,
+            status="pending",
+            percent=0,
+            current_step="Task is queued, waiting for worker.",
+            result=None,
+        )
+    elif state == "PROGRESS":
+        meta = result.info or {}
+        return IngestionStatusResponse(
+            task_id=task_id,
+            status="running",
+            percent=meta.get("percent", 0),
+            current_step=meta.get("status", "Processing..."),
+            result=None,
+        )
+    elif state == "SUCCESS":
+        return IngestionStatusResponse(
+            task_id=task_id,
+            status="complete",
+            percent=100,
+            current_step="Ingestion complete.",
+            result=result.result,
+        )
+    elif state == "FAILURE":
+        return IngestionStatusResponse(
+            task_id=task_id,
+            status="failed",
+            percent=0,
+            current_step=str(result.info),
+            result=None,
+        )
+    else:
+        return IngestionStatusResponse(
+            task_id=task_id,
+            status=state.lower(),
+            percent=0,
+            current_step="Unknown state.",
+            result=None,
+        )
+5.7 White Wolf Book Naming Conventions
+
+The following table provides the canonical naming conventions, splat classifications, and recommended ingestion tags for commonly used sourcebooks. Use these values for the source_book_name and splat fields at upload time to ensure consistent metadata and filter-accurate retrieval.
+
+Book TitleShort CodePrimary SplatRecommended TagsVampire: The Masquerade 20th Anniversary EditionV20vampirekindred, disciplines, clans, camarilla, sabbat, anarchs, lore, rulesVampire: The Masquerade 5th EditionV5vampirehunger, resonance, loresheets, thin-bloods, second inquisition, rulesWerewolf: The Apocalypse 20th Anniversary EditionWtA20werewolfgarou, gifts, rites, tribes, auspice, umbra, wyrm, weaver, wyld, rulesMage: The Ascension 20th Anniversary EditionMtAs20magespheres, traditions, technocracy, paradox, quintessence, awakening, rulesChangeling: The Dreaming 20th Anniversary EditionCtD20changelingfae, glamour, dreaming, banality, kith, seeming, arts, realms, rulesHunter: The ReckoningHtRhunterimbued, edges, creeds, messengers, supernatural, vigilante, rulesWraith: The Oblivion 20th Anniversary EditionWtO20wraithshadow, corpus, pathos, arcanoi, stygia, tempest, guild, spectres, rulesKindred of the EastKotEkindred_of_the_eastkuei-jin, dharma, chi, disciplines, asia, wu-zao, yin, yang, rulesDark Ages: VampireDAVvampiredark ages, medieval, roads, high clans, low clans, historical, rulesChicago by Night (V5)ChiByNightvampirechicago, setting, npcs, factions, anarch, loresheets, loreMidnight CircusMidCircusmixedcircus, antagonists, wyld, fomori, supernatural, carnival, lore, horrorSubsidiaries: A Guide to PentexPentexwerewolfpentex, wyrm, corporations, fomori, banes, black spiral dancers, antagonists, lore
+
+Section 6 — State Engine
+
+6.1 Overview
+
+The narrative state engine is the beating heart beneath the Storyteller AI's skin — the machinery that ensures the AI does not simply respond to each player message in isolation, but maintains coherent, evolving awareness of the chronicle's dramatic arc. Without persistent state, the AI is an amnesiac narrator. With it, the AI is a living chronicle.
+The state engine tracks: the current scene and its location, all active NPCs and their shifting dispositions, each player character's current physical and supernatural condition, a tension meter that modulates the prose register, a doom clock that creates urgency and consequence, a momentum tracker that reflects who is winning the narrative struggle, and a rolling history of the last ten scene events for context injection.
+State is persisted to the state_json column of the GameSession table after every narrative exchange, ensuring full recovery from crashes, server restarts, and Discord disconnections.
+6.2 State Schema
+
+python — app/core/state_machine.py (State Pydantic models)
+"""Pydantic models for narrative session state. Serialized to/from GameSession.state_json (JSONB column)."""
+from __future__ import annotations
+
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+from app.enums import SessionMode, NPCDisposition, StateMachineState
+
+
+class NPCState(BaseModel):
+    """Lightweight runtime state for an NPC in the current scene."""
+    name: str
+    disposition: NPCDisposition = NPCDisposition.NEUTRAL
+    current_goal: str = "unknown"
+    last_action: Optional[str] = None
+    is_present_in_scene: bool = True
+    health_descriptor: str = "unharmed"  # Narrative description, not stat
+
+
+class PCState(BaseModel):
+    """Lightweight runtime state for a player character in the current scene."""
+    character_id: str  # UUID string
+    name: str
+    player_name: str
+    current_health: str = "Healthy"  # HealthLevel label
+    pool_current: int = 10  # Blood/Rage/Quintessence current
+    pool_max: int = 10
+    willpower_current: int = 5
+    willpower_max: int = 10
+    active_conditions: List[str] = Field(default_factory=list)
+    # e.g., ["Frenzy Check Pending", "Burning (Aggravated)", "Mesmerized by Vittoria"]
+
+
+class SceneEvent(BaseModel):
+    """A single entry in the scene history ring buffer."""
+    event_type: str  # EventType.value string
+    summary: str  # 1-2 sentence summary for context injection
+    tension_at_event: int = 5
+    doom_at_event: int = 0
+
+
+class SessionState(BaseModel):
+    """
+    Complete serializable state for a game session.
+    Stored in GameSession.state_json and rebuilt on each request.
+    """
+
+    # ?? Scene Context ????????????????????????????????????????????????????
+    machine_state: StateMachineState = StateMachineState.SCENE_OPEN
+    scene_title: str = "A Dark and Unnamed Place"
+    scene_description: str = ""
+    location: str = "Unknown"
+    time_of_night: str = "Midnight"
+
+    # ?? Characters ???????????????????????????????????????????????????????
+    player_characters: List[PCState] = Field(default_factory=list)
+    active_npcs: List[NPCState] = Field(default_factory=list)
+
+    # ?? Narrative Meters ?????????????????????????????????????????????????
+    tension_level: int = Field(default=3, ge=1, le=10)
+    doom_clock: int = Field(default=0, ge=0, le=12)
+    momentum: int = Field(default=0, ge=-5, le=5)
+    # momentum: negative = players losing, positive = players prevailing
+
+    # ?? Scene History (ring buffer, max 10) ??????????????????????????????
+    scene_history: List[SceneEvent] = Field(default_factory=list)
+
+    # ?? Threat & Plot Tracking ????????????????????????????????????????????
+    active_threats: List[str] = Field(default_factory=list)
+    active_plot_hooks: List[str] = Field(default_factory=list)
+
+    # ?? Session Meta ?????????????????????????????????????????????????????
+    session_mode: SessionMode = SessionMode.SOLO
+    combat_round: int = 0
+    initiative_order: List[str] = Field(default_factory=list)
+    consecutive_scenes_at_max_tension: int = 0
+
+    def append_event(self, event: SceneEvent) -> None:
+        """Appends to scene history, maintaining max 10 entries."""
+        self.scene_history.append(event)
+        if len(self.scene_history) > 10:
+            self.scene_history = self.scene_history[-10:]
+6.3 state_machine.py — Full Code
+
+python — app/core/state_machine.py
+"""StorytellerStateMachine — manages narrative state transitions and persistence for a World of Darkness game session."""
+from __future__ import annotations
+
+import logging
+from typing import Dict
+
+from app.enums import StateMachineState
+from app.core.state_machine_models import SessionState
+
+logger = logging.getLogger("storyteller.state")
+
+
+# ?? Valid Transitions ????????????????????????????????????????????????????????
+VALID_TRANSITIONS: Dict[StateMachineState, list[StateMachineState]] = {
+    StateMachineState.SCENE_OPEN: [
+        StateMachineState.PLAYER_ACTING,
+        StateMachineState.DOWNTIME,
+        StateMachineState.SESSION_END,
+    ],
+    StateMachineState.PLAYER_ACTING: [
+        StateMachineState.NPC_REACTING,
+        StateMachineState.COMBAT,
+        StateMachineState.SOCIAL_CONFLICT,
+        StateMachineState.SCENE_TRANSITION,
+    ],
+    StateMachineState.NPC_REACTING: [
+        StateMachineState.PLAYER_ACTING,
+        StateMachineState.COMBAT,
+        StateMachineState.SOCIAL_CONFLICT,
+        StateMachineState.SCENE_OPEN,
+    ],
+    StateMachineState.COMBAT: [
+        StateMachineState.PLAYER_ACTING,
+        StateMachineState.SCENE_TRANSITION,
+        StateMachineState.DOWNTIME,
+        StateMachineState.SESSION_END,
+    ],
+    StateMachineState.SOCIAL_CONFLICT: [
+        StateMachineState.PLAYER_ACTING,
+        StateMachineState.NPC_REACTING,
+        StateMachineState.SCENE_TRANSITION,
+    ],
+    StateMachineState.DOWNTIME: [
+        StateMachineState.SCENE_OPEN,
+        StateMachineState.SESSION_END,
+    ],
+    StateMachineState.SCENE_TRANSITION: [StateMachineState.SCENE_OPEN],
+    StateMachineState.SESSION_END: [],
+}
+
+
+class StorytellerStateMachine:
+    """
+    Manages the narrative state of a World of Darkness session.
+    Handles transitions, meter updates, persistence, and doom events.
+    """
+
+    def __init__(self, state: SessionState):
+        self.state = state
+
+    # ?? State Transitions ????????????????????????????????????????????????
+    def transition_to(self, new_state: StateMachineState, reason: str = "") -> bool:
+        """
+        Attempts a state transition. Validates against allowed transition table.
+
+        Returns True if successful, False if the transition is not valid.
+        """
+        current = self.state.machine_state
+        if new_state not in VALID_TRANSITIONS.get(current, []):
+            logger.warning(
+                f"Invalid transition: {current.value} -> {new_state.value} | Reason: {reason}"
+            )
+            return False
+
+        logger.info(f"State transition: {current.value} -> {new_state.value} | {reason}")
+        self.state.machine_state = new_state
+
+        # Reset combat round on combat entry
+        if new_state == StateMachineState.COMBAT and self.state.combat_round == 0:
+            self.state.combat_round = 1
+
+        # Reset combat round on combat exit
+        if current == StateMachineState.COMBAT and new_state != StateMachineState.COMBAT:
+            self.state.combat_round = 0
+            self.state.initiative_order = []
+
+        return True
+
+    # ?? Guard Conditions ?????????????????????????????????????????????????
+    def can_enter_combat(self, player_declared_attack: bool = False) -> bool:
+        """Combat entry requires tension >= 6 OR explicit player attack declaration."""
+        return self.state.tension_level >= 6 or player_declared_attack
+
+    def can_enter_downtime(self) -> bool:
+        """Downtime only available when not in active combat or crisis."""
+        return self.state.machine_state not in [
+            StateMachineState.COMBAT,
+            StateMachineState.SOCIAL_CONFLICT,
+        ]
+
+    # ?? Narrative Meter Updates ??????????????????????????????????????????
+    def update_tension(self, delta: int) -> int:
+        """
+        Adjusts tension level by delta. Clamps to [1, 10].
+        If tension has been at 10 for 2+ consecutive scenes, tracks for doom advancement.
+
+        Returns the new tension level.
+        """
+        old_tension = self.state.tension_level
+        self.state.tension_level = max(1, min(10, self.state.tension_level + delta))
+
+        if self.state.tension_level == 10:
+            self.state.consecutive_scenes_at_max_tension += 1
+        else:
+            self.state.consecutive_scenes_at_max_tension = 0
+
+        logger.debug(f"Tension: {old_tension} -> {self.state.tension_level} (?{delta:+d})")
+        return self.state.tension_level
+
+    def update_momentum(self, delta: int) -> int:
+        """Adjusts momentum by delta. Clamps to [-5, +5]."""
+        self.state.momentum = max(-5, min(5, self.state.momentum + delta))
+        return self.state.momentum
+
+    def advance_doom(self, n: int = 1) -> int:
+        """
+        Advances the doom clock by n steps. Clamps to [0, 12].
+        If doom reaches 12, triggers the catastrophic doom event.
+
+        Returns the new doom value.
+        """
+        old_doom = self.state.doom_clock
+        self.state.doom_clock = min(12, self.state.doom_clock + n)
+        logger.warning(f"Doom Clock: {old_doom} -> {self.state.doom_clock}")
+
+        if self.state.doom_clock >= 12:
+            self.trigger_doom_event()
+
+        return self.state.doom_clock
+
+    def trigger_doom_event(self) -> dict:
+        """
+        Called when the doom clock reaches 12.
+        Generates a catastrophic narrative event descriptor and resets the clock to 8
+        (allowing the chronicle to continue, scarred, rather than abruptly ending).
+
+        Returns a dict describing the catastrophic event for injection into the next prompt.
+        """
+        logger.critical("??  DOOM CLOCK AT 12 — TRIGGERING CATASTROPHIC EVENT")
+
+        doom_event = {
+            "type": "doom_event",
+            "severity": "catastrophic",
+            "description": (
+                "The accumulated weight of inaction and consequence crashes down. "
+                "Something irreversible has occurred. An ally is lost, a haven destroyed, "
+                "a secret revealed to the worst possible audience, or a power awakens "
+                "that was better left sleeping. The chronicle will never be the same."
+            ),
+            "narrative_instruction": (
+                "DOOM EVENT TRIGGERED — The Storyteller must narrate a catastrophic, "
+                "chronicle-altering event that reflects the accumulated failures and threats "
+                "of this session. This is not the end — it is the darkest hour before dawn "
+                "costs everything. Convey weight, loss, and terrible consequence."
+            ),
+        }
+
+        # Reset doom to 8 — chronicle continues but scarred
+        self.state.doom_clock = 8
+        self.state.tension_level = 10
+        self.state.consecutive_scenes_at_max_tension = 0
+
+        return doom_event
+
+    # ?? Player Action Processing ?????????????????????????????????????????
+    def process_player_action(self, action_text: str) -> dict:
+        """
+        Analyzes player action text and returns a recommended state delta.
+        Detects attack declarations, social engagement, stealth, retreat.
+
+        Returns a dict of recommended state changes to apply before LLM call.
+        """
+        action_lower = action_text.lower()
+        delta: dict = {
+            "tension_delta": 0,
+            "momentum_delta": 0,
+            "suggested_transition": None,
+        }
+
+        # Attack detection ? suggest COMBAT transition
+        attack_keywords = ["attack", "strike", "shoot", "bite", "slash", "fight", "kill", "draw weapon"]
+        if any(kw in action_lower for kw in attack_keywords):
+            delta["suggested_transition"] = StateMachineState.COMBAT
+            delta["tension_delta"] = 2
+
+        # Social manipulation ? suggest SOCIAL_CONFLICT
+        social_keywords = ["intimidate", "persuade", "seduce", "command", "dominate", "convince", "threaten"]
+        if any(kw in action_lower for kw in social_keywords):
+            if self.state.machine_state != StateMachineState.COMBAT:
+                delta["suggested_transition"] = StateMachineState.SOCIAL_CONFLICT
+                delta["tension_delta"] = 1
+
+        # Retreat / flee ? reduce tension
+        retreat_keywords = ["flee", "escape", "run", "retreat", "hide", "go to ground"]
+        if any(kw in action_lower for kw in retreat_keywords):
+            delta["tension_delta"] = -1
+            delta["momentum_delta"] = -1
+
+        return delta
+
+    # ?? Auto-Advance Doom Logic ??????????????????????????????????????????
+    def tick_scene(self) -> None:
+        """
+        Called at the end of each scene narration turn.
+        Applies automatic doom advancement triggers.
+        """
+        # Doom advances if tension has been at 10 for 2+ consecutive scenes
+        if self.state.consecutive_scenes_at_max_tension >= 2:
+            self.advance_doom(1)
+            logger.warning("Doom advanced: sustained maximum tension.")
+
+        # Doom advances if momentum deeply negative (players losing)
+        if self.state.momentum <= -4:
+            self.advance_doom(1)
+            logger.warning("Doom advanced: severe negative momentum.")
+
+    # ?? Serialization ????????????????????????????????????????????????????
+    def serialize(self) -> dict:
+        """Serialize the current state to a dict for storage in session.state_json."""
+        return self.state.model_dump(mode="json")
+
+    @classmethod
+    def deserialize(cls, state_dict: dict) -> "StorytellerStateMachine":
+        """Reconstruct a StorytellerStateMachine from a stored state_json dict."""
+        state = SessionState.model_validate(state_dict)
+        return cls(state=state)
+6.4 Context Window Management
+
+Every narration call must assemble a prompt that fits within the model's context window. The Storyteller AI targets a conservative 12,000-token budget per request, leaving headroom for the model's response and guardrailing against unexpected input size spikes.
+python — app/core/storyteller_engine.py (context assembler)
+"""Context assembly for prompt construction — token-aware."""
+import tiktoken
+from typing import List
+
+from app.core.state_machine_models import SessionState
+
+TIKTOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")  # GPT-4o encoding
+TOKEN_BUDGET = 12_000
+SYSTEM_PROMPT_RESERVE = 1_500    # Tokens reserved for system prompt
+RESPONSE_RESERVE = 2_048         # Tokens reserved for model response output
+AVAILABLE_BUDGET = TOKEN_BUDGET - SYSTEM_PROMPT_RESERVE - RESPONSE_RESERVE
+# = 8,452 tokens for dynamic context
+
+
+def count_tokens(text: str) -> int:
+    """Returns the token count for a string using GPT-4o tokenizer."""
+    return len(TIKTOKEN_ENCODER.encode(text))
+
+
+def context_assembler(
+    state: SessionState,
+    lore_chunks: List[str],
+    player_input: str,
+    character_summary: str,
+    max_tokens: int = AVAILABLE_BUDGET,
+) -> dict:
+    """
+    Assembles context components within the token budget.
+
+    Priority order (highest to lowest):
+      1. Player input (always included)
+      2. Character summary (always included)
+      3. Current state snapshot (always included)
+      4. Active NPC list (always included)
+      5. Last 5 scene events (trimmed if needed)
+      6. Retrieved lore chunks (top 3, trimmed to fit)
+
+    Returns dict with final assembled text components and token usage stats.
+    """
+    components = {}
+    total_tokens = 0
+
+    # ?? Always-include components ??????????????????????????????????????
+    pi_tokens = count_tokens(player_input)
+    char_tokens = count_tokens(character_summary)
+    state_snap = _build_state_snapshot(state)
+    state_tokens = count_tokens(state_snap)
+    npc_text = _build_npc_list(state)
+    npc_tokens = count_tokens(npc_text)
+
+    core_tokens = pi_tokens + char_tokens + state_tokens + npc_tokens
+    total_tokens += core_tokens
+
+    components["player_input"] = player_input
+    components["character_summary"] = character_summary
+    components["state_snapshot"] = state_snap
+    components["npc_list"] = npc_text
+
+    # ?? Scene history (last 5 events, trim if over budget) ?????????????
+    remaining = max_tokens - total_tokens
+    history_text = _build_scene_history(state, max_events=5)
+    history_tokens = count_tokens(history_text)
+
+    if history_tokens <= remaining:
+        components["scene_history"] = history_text
+        total_tokens += history_tokens
+        remaining -= history_tokens
+    else:
+        # Include fewer events
+        for n in [3, 2, 1]:
+            trimmed = _build_scene_history(state, max_events=n)
+            t = count_tokens(trimmed)
+            if t <= remaining:
+                components["scene_history"] = trimmed
+                total_tokens += t
+                remaining -= t
+                break
+        else:
+            components["scene_history"] = "[Scene history omitted — token budget]"
+
+    # ?? Lore chunks (top 3, fit within remaining) ??????????????????????
+    lore_included = []
+    for chunk in lore_chunks[:3]:
+        chunk_tokens = count_tokens(chunk)
+        if chunk_tokens <= remaining:
+            lore_included.append(chunk)
+            remaining -= chunk_tokens
+        else:
+            break  # No more room
+
+    components["lore_chunks"] = lore_included
+    components["token_usage"] = {
+        "total": total_tokens + sum(count_tokens(c) for c in lore_included),
+        "budget": max_tokens,
+        "lore_chunks_included": len(lore_included),
+    }
+
+    return components
+
+
+def _build_state_snapshot(state: SessionState) -> str:
+    return (
+        f"Scene: {state.scene_title} | Location: {state.location} | "
+        f"Time: {state.time_of_night} | Mode: {state.machine_state.value} | "
+        f"Tension: {state.tension_level}/10 | Doom: {state.doom_clock}/12 | "
+        f"Momentum: {state.momentum:+d}"
+    )
+
+
+def _build_npc_list(state: SessionState) -> str:
+    if not state.active_npcs:
+        return "No NPCs active in scene."
+    lines = [
+        f"  {npc.name} — {npc.disposition.value} | Goal: {npc.current_goal}"
+        for npc in state.active_npcs if npc.is_present_in_scene
+    ]
+    return "\n".join(lines) or "No NPCs present."
+
+
+def _build_scene_history(state: SessionState, max_events: int = 5) -> str:
+    events = state.scene_history[-max_events:]
+    if not events:
+        return "No prior events recorded."
+    lines = [f"  [{e.event_type}] {e.summary}" for e in events]
+    return "\n".join(lines)
+6.5 Tension & Doom System
+
+The tension and doom systems are the Storyteller AI's primary tools for conveying the oppressive weight of the World of Darkness narrative. They are not mere metadata fields — they directly modulate the AI's narration register and trigger automatic consequence events.
+Tension Level (1–10)
+
+Tension RangeCausesNarration RegisterAI Behavior1–3 (Low)Player successes, safe haven, allies interveningAtmospheric, exploratory, introspectiveRich description, slow pacing, social opportunities4–6 (Rising)Failed actions, NPC threats, complications emergingDread building, complications multiplyingShort sentences, time pressure, NPC hostility visible7–9 (High)Time pressure, moral compromise, critical failuresDesperate urgency, breathless proseLimited choices, stakes stated explicitly, NPCs press advantage10 (Crisis)Sustained failure, doom near, catastrophe imminentCinematic, visceral, consequence-heavyDire choices only, doom advancement trigger active
+Doom Clock (0–12)
+The doom clock represents the chronicle's inexorable march toward catastrophe. It advances when antagonists act unopposed, when tension stays at maximum, when players fail at critical moments, or when the GM manually advances it for dramatic purpose. It does not automatically end the chronicle — it marks the approach of an inevitable reckoning.
+? Doom 0–3: The shadow falls but has not yet touched the players' world.
+? Doom 4–6: The players' enemies grow bolder; NPCs whisper of coming storm.
+? Doom 7–9: Consequences of earlier failures begin manifesting visibly.
+? Doom 10–11: Catastrophe is close; every scene carries it in the air.
+? Doom 12: trigger_doom_event() fires — irreversible chronicle alteration. Clock resets to 8.
+
+? DESIGN TIP — Doom as Story Tool
+The doom clock should feel threatening but never arbitrary. Always telegraph what is advancing it through NPC dialogue, environmental details, and scene descriptions. Players who pay attention should be able to anticipate doom events and choose to act (or choose not to, carrying the weight of consequence). The Storyteller AI is instructed to embed these telegraphs automatically as doom rises.
+
+Section 7 — Discord Bot Architecture
+
+7.1 Overview
+
+The Discord bot is the veil between the Storyteller AI's cold machinery and the warm, social experience of tabletop play. It is the interface through which players inhabit their characters, through which GMs receive whispered counsel, and through which lore is surfaced from ingested sourcebooks. Built on discord.py 2.3+ with the Cogs architecture, the bot communicates with the FastAPI backend exclusively over async HTTP (httpx) — it maintains no direct database connections and carries no business logic.
+Each Discord guild (server) binds to exactly one active GameSession. Guild-specific state (session ID, GM user ID, storyteller channel ID) is stored in Redis with guild ID as the key. This enables multi-guild deployment with complete isolation.
+7.2 Bot Directory Structure
+
+text — discord_bot/ directory
+app/discord_bot/
+??? __init__.py
+??? bot.py                   # Main Bot subclass — loads cogs, handles events
+??? config.py                # Bot-specific config (API base URL, guild settings)
+??? api_client.py            # Async httpx client wrapping FastAPI routes
+??? embed_builder.py         # Discord Embed factory functions
+??? views.py                 # discord.ui.View subclasses (buttons, selects)
+??? rate_limiter.py          # Per-guild token budget and cooldown enforcement
+??? cogs/
+    ??? __init__.py
+    ??? session_cog.py       # /start-session, /end-session, /session-status, /add-character
+    ??? gm_cog.py            # /suggest, /npc-voice, /encounter, /advance-doom, /set-tension
+    ??? lore_cog.py          # /lore, /power, /rule
+7.3 bot.py — Full Code
+
+python — app/discord_bot/bot.py
+"""White Wolf Storyteller AI — Discord Bot Main. Bot subclass with Cog loading, guild session binding, and error handling."""
+from __future__ import annotations
+
+import logging
+from typing import Optional
+
+import discord
+from discord.ext import commands
+
+from app.config import get_settings
+from app.discord_bot.api_client import StorytellerAPIClient
+from app.discord_bot.rate_limiter import GuildRateLimiter
+from app.discord_bot.views import NarrativeResponseView
+
+logger = logging.getLogger("storyteller.bot")
+settings = get_settings()
+
+COGS = [
+    "app.discord_bot.cogs.session_cog",
+    "app.discord_bot.cogs.gm_cog",
+    "app.discord_bot.cogs.lore_cog",
+]
+
+
+class StorytellerBot(commands.Bot):
+    """
+    The Storyteller Discord Bot.
+    Manages Cog loading, API client, and per-guild session registry.
+    """
+
+    def __init__(self) -> None:
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.reactions = True
+
+        super().__init__(
+            command_prefix="/",
+            intents=intents,
+            application_id=settings.DISCORD_CLIENT_ID,
+        )
+
+        self.api_client = StorytellerAPIClient(base_url="http://api:8000/api/v1")
+        self.rate_limiter = GuildRateLimiter()
+
+        # guild_id ? {session_id, channel_id, gm_user_id}
+        self._guild_sessions: dict[int, dict] = {}
+
+    async def setup_hook(self) -> None:
+        """Called once after login, before gateway connection. Load all Cogs."""
+        for cog_path in COGS:
+            try:
+                await self.load_extension(cog_path)
+                logger.info(f"Loaded cog: {cog_path}")
+            except Exception as e:
+                logger.error(f"Failed to load cog {cog_path}: {e}", exc_info=True)
+
+        # Sync slash commands globally (use guild-specific for development)
+        await self.tree.sync()
+        logger.info("Slash commands synced.")
+
+    async def on_ready(self) -> None:
+        logger.info(f"Storyteller Bot awakened as {self.user} (ID: {self.user.id})")
+        await self.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.watching,
+                name="the darkness gather...",
+            )
+        )
+
+    async def on_message(self, message: discord.Message) -> None:
+        """
+        Routes non-command messages in the designated storyteller channel
+        to the narration endpoint as player actions.
+        """
+        if message.author.bot:
+            return
+
+        guild_data = self._guild_sessions.get(message.guild.id if message.guild else 0)
+        if not guild_data:
+            return  # No active session for this guild
+
+        storyteller_channel_id = guild_data.get("channel_id")
+        if message.channel.id != storyteller_channel_id:
+            await self.process_commands(message)
+            return
+
+        # Rate limit check
+        if not await self.rate_limiter.check_cooldown(message.guild.id):
+            await message.add_reaction("?")
+            return
+
+        if not await self.rate_limiter.check_token_budget(message.guild.id):
+            await message.channel.send(
+                "This chronicle has exhausted its daily token budget. "
+                "The darkness falls silent until tomorrow.",
+                delete_after=15,
+            )
+            return
+
+        # Send to narration endpoint
+        async with message.channel.typing():
+            try:
+                result = await self.api_client.narrate(
+                    session_id=guild_data["session_id"],
+                    player_input=message.content,
+                    character_id=guild_data.get("default_character_id"),
+                )
+                view = NarrativeResponseView(bot=self, session_id=guild_data["session_id"])
+                embed = self._build_narration_embed(result, message.author)
+                await message.channel.send(embed=embed, view=view)
+                await self.rate_limiter.record_usage(
+                    message.guild.id,
+                    result.get("token_count", 500),
+                )
+            except Exception as e:
+                logger.error(f"Narration error: {e}", exc_info=True)
+                await message.channel.send(
+                    "The Storyteller's voice falters. An error has occurred. "
+                    "Try again or use /session-status to check session health."
+                )
+
+    def register_guild_session(
+        self,
+        guild_id: int,
+        session_id: str,
+        channel_id: int,
+        gm_user_id: int,
+    ) -> None:
+        """Registers an active session for a guild."""
+        self._guild_sessions[guild_id] = {
+            "session_id": session_id,
+            "channel_id": channel_id,
+            "gm_user_id": gm_user_id,
+        }
+
+    def get_guild_session(self, guild_id: int) -> Optional[dict]:
+        return self._guild_sessions.get(guild_id)
+
+    def _build_narration_embed(self, result: dict, author: discord.User) -> discord.Embed:
+        embed = discord.Embed(
+            description=result.get("narration", "The darkness swallows the scene..."),
+            color=0x4A0000,
+        )
+        if result.get("suggested_actions"):
+            embed.add_field(
+                name="? Choices ?",
+                value="\n".join(
+                    f"`{i+1}.` {a}"
+                    for i, a in enumerate(result["suggested_actions"][:3])
+                ),
+                inline=False,
+            )
+        embed.set_footer(text=f"Storyteller AI • Action by {author.display_name}")
+        return embed
+
+
+async def run_bot() -> None:
+    """Entry point for running the Discord bot as a standalone process."""
+    bot = StorytellerBot()
+    async with bot:
+        await bot.start(settings.DISCORD_TOKEN)
+7.4 session_cog.py — Full Code
+
+python — app/discord_bot/cogs/session_cog.py
+"""Session Cog — slash commands for managing game sessions."""
+from __future__ import annotations
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+from app.enums import SessionMode, Splat
+
+
+class SessionCog(commands.Cog, name="Session"):
+    """Commands for creating and managing World of Darkness game sessions."""
+
+    def __init__(self, bot) -> None:
+        self.bot = bot
+
+    @app_commands.command(name="start-session", description="Begin a new chronicle session.")
+    @app_commands.describe(
+        mode="Session mode: solo, group, or assistant_gm",
+        chronicle_name="Name of this chronicle",
+        setting="World of Darkness game line",
+    )
+    async def start_session(
+        self,
+        interaction: discord.Interaction,
+        chronicle_name: str,
+        mode: str = "solo",
+        setting: str = "vampire",
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
+
+        try:
+            splat = Splat(setting.lower())
+            session_mode = SessionMode(mode.lower())
+        except ValueError:
+            await interaction.followup.send(
+                f"Invalid mode or setting. Valid modes: {[m.value for m in SessionMode]}. "
+                f"Valid settings: {[s.value for s in Splat]}."
+            )
+            return
+
+        result = await self.bot.api_client.create_session(
+            name=chronicle_name,
+            mode=session_mode.value,
+            setting=splat.value,
+        )
+
+        self.bot.register_guild_session(
+            guild_id=interaction.guild_id,
+            session_id=result["id"],
+            channel_id=interaction.channel_id,
+            gm_user_id=interaction.user.id,
+        )
+
+        embed = discord.Embed(
+            title=f"Chronicle Begins: {chronicle_name}",
+            description=(
+                f"**Mode:** {session_mode.value.replace('_', ' ').title()}\n"
+                f"**Setting:** {splat.value.replace('_', ' ').title()}\n"
+                f"**Session ID:** `{result['id']}`\n\n"
+                "The Storyteller stirs. Darkness settles. The chronicle begins.\n"
+                "*Messages in this channel will be treated as player actions.*"
+            ),
+            color=0x4A0000,
+        )
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="end-session", description="Archive and close the current session.")
+    async def end_session(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if not guild_data:
+            await interaction.followup.send("No active session found for this server.")
+            return
+
+        await self.bot.api_client.delete_session(guild_data["session_id"])
+        self.bot._guild_sessions.pop(interaction.guild_id, None)
+        await interaction.followup.send(
+            "The chronicle closes. The Storyteller returns to shadow."
+        )
+
+    @app_commands.command(name="session-status", description="Display current session state.")
+    async def session_status(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if not guild_data:
+            await interaction.followup.send("No active session. Use /start-session first.")
+            return
+
+        session = await self.bot.api_client.get_session(guild_data["session_id"])
+        state = session.get("state_json") or {}
+
+        tension = state.get("tension_level", "?")
+        doom = state.get("doom_clock", "?")
+        scene = state.get("scene_title", "Unknown Scene")
+
+        tension_bar = "??" * min(int(tension), 10) if isinstance(tension, int) else "?"
+        doom_bar = "??" * min(int(doom), 12) if isinstance(doom, int) else "?"
+
+        embed = discord.Embed(title="Session Status", color=0x4A0000)
+        embed.add_field(name="Chronicle", value=session.get("name", "Unknown"), inline=True)
+        embed.add_field(name="Setting", value=session.get("setting", "Unknown").title(), inline=True)
+        embed.add_field(name="Current Scene", value=scene, inline=False)
+        embed.add_field(name=f"Tension [{tension}/10]", value=tension_bar or "—", inline=True)
+        embed.add_field(name=f"Doom [{doom}/12]", value=doom_bar or "—", inline=True)
+        embed.add_field(name="Location", value=state.get("location", "Unknown"), inline=False)
+
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="add-character", description="Register a PC to the session.")
+    @app_commands.describe(name="Character name", player="Player's Discord username")
+    async def add_character(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+        player: str,
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if not guild_data:
+            await interaction.followup.send("No active session.")
+            return
+
+        await interaction.followup.send(
+            f"Character **{name}** (Player: {player}) staged for registration.\n"
+            "Full character sheet import via `/characters` endpoint or API recommended."
+        )
+
+    @app_commands.command(name="set-channel", description="Set this channel as the storyteller narrative channel.")
+    async def set_channel(self, interaction: discord.Interaction) -> None:
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if guild_data:
+            guild_data["channel_id"] = interaction.channel_id
+            await interaction.response.send_message(
+                f"Storyteller channel set to {interaction.channel.mention}.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message("No active session.", ephemeral=True)
+
+
+async def setup(bot) -> None:
+    await bot.add_cog(SessionCog(bot))
+7.5 gm_cog.py — Full Code
+
+python — app/discord_bot/cogs/gm_cog.py
+"""GM Cog — slash commands for the human Storyteller / GM. All responses are ephemeral (visible only to the GM user)."""
+from __future__ import annotations
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+
+def is_gm():
+    """Check decorator — user must have the configured GM role."""
+
+    async def predicate(interaction: discord.Interaction) -> bool:
+        from app.config import get_settings
+
+        settings = get_settings()
+        gm_role = discord.utils.get(interaction.guild.roles, name=settings.DISCORD_GM_ROLE_NAME)
+        if gm_role and gm_role in interaction.user.roles:
+            return True
+        await interaction.response.send_message(
+            f"This command requires the **{settings.DISCORD_GM_ROLE_NAME}** role.",
+            ephemeral=True,
+        )
+        return False
+
+    return app_commands.check(predicate)
+
+
+class GMCog(commands.Cog, name="GM"):
+    """Commands for the human Storyteller — suggestions, NPC voices, encounters."""
+
+    def __init__(self, bot) -> None:
+        self.bot = bot
+
+    @app_commands.command(name="suggest", description="[GM] Get AI suggestions for a scene.")
+    @app_commands.describe(scene_description="Brief description of the current scene or situation")
+    @is_gm()
+    async def suggest(self, interaction: discord.Interaction, scene_description: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+
+        result = await self.bot.api_client.gm_suggest(
+            scene_context=scene_description,
+            session_id=guild_data["session_id"] if guild_data else None,
+        )
+        suggestions = result.get("suggestions", "No suggestions returned.")
+
+        # Split into chunks for Discord's 2000-char limit
+        chunks = [suggestions[i:i + 1900] for i in range(0, len(suggestions), 1900)]
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"Storyteller Whispers {'(cont.)' if i > 0 else ''}",
+                description=f"```{chunk}```",
+                color=0x2A0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="npc-voice", description="[GM] Generate NPC dialogue options.")
+    @app_commands.describe(npc_name="NPC name (must be in session registry)", context="Scene context")
+    @is_gm()
+    async def npc_voice(
+        self,
+        interaction: discord.Interaction,
+        npc_name: str,
+        context: str,
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if not guild_data:
+            await interaction.followup.send("No active session.", ephemeral=True)
+            return
+
+        result = await self.bot.api_client.npc_voice(
+            session_id=guild_data["session_id"],
+            npc_name=npc_name,
+            context=context,
+        )
+
+        embed = discord.Embed(title=f"Voice: {npc_name}", color=0x2A0000)
+        for i, option in enumerate(result.get("dialogue_options", [])[:3]):
+            embed.add_field(name=f"Option {chr(65 + i)}", value=option, inline=False)
+        if result.get("voice_notes"):
+            embed.set_footer(text=result["voice_notes"])
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="encounter", description="[GM] Generate an encounter from parameters.")
+    @app_commands.describe(
+        location="Scene location description",
+        threat_level="1 (trivial) to 5 (catastrophic)",
+        mood="Atmospheric mood (e.g. tense, eerie, desperate)",
+    )
+    @is_gm()
+    async def encounter(
+        self,
+        interaction: discord.Interaction,
+        location: str,
+        threat_level: int,
+        mood: str = "tense",
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+
+        result = await self.bot.api_client.generate_encounter(
+            location=location,
+            mood=mood,
+            threat_level=threat_level,
+            active_factions=[],
+            session_id=guild_data["session_id"] if guild_data else None,
+        )
+
+        embed = discord.Embed(
+            title=f"Encounter: {location[:50]}",
+            description=result.get("opening_description", ""),
+            color=0x4A0000,
+        )
+
+        if result.get("npc_motivations"):
+            embed.add_field(
+                name="NPC Motivations",
+                value="\n".join(f"• {m}" for m in result["npc_motivations"][:3]),
+                inline=False,
+            )
+        if result.get("possible_resolutions"):
+            embed.add_field(
+                name="Possible Resolutions",
+                value="\n".join(f"• {r}" for r in result["possible_resolutions"][:3]),
+                inline=False,
+            )
+        if result.get("xp_reward_suggestion"):
+            embed.add_field(
+                name="XP Suggestion",
+                value=result["xp_reward_suggestion"],
+                inline=True,
+            )
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="advance-doom", description="[GM] Manually advance the doom clock by 1.")
+    @is_gm()
+    async def advance_doom(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if not guild_data:
+            await interaction.followup.send("No active session.")
+            return
+
+        result = await self.bot.api_client.advance_doom(guild_data["session_id"])
+        new_doom = result.get("doom_clock", "?")
+        doom_bar = "??" * min(int(new_doom), 12) if isinstance(new_doom, int) else "?"
+
+        embed = discord.Embed(
+            title="The Doom Clock Advances",
+            description=(
+                "The darkness deepens. Something wicked draws closer.\n\n"
+                f"{doom_bar} `[{new_doom}/12]`"
+            ),
+            color=0x1A0000,
+        )
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="set-tension", description="[GM] Set session tension level (1-10).")
+    @app_commands.describe(value="Tension level from 1 (calm) to 10 (crisis)")
+    @is_gm()
+    async def set_tension(self, interaction: discord.Interaction, value: int) -> None:
+        await interaction.response.defer(ephemeral=True)
+        if not 1 <= value <= 10:
+            await interaction.followup.send("Tension must be between 1 and 10.", ephemeral=True)
+            return
+
+        guild_data = self.bot.get_guild_session(interaction.guild_id)
+        if not guild_data:
+            await interaction.followup.send("No active session.", ephemeral=True)
+            return
+
+        await self.bot.api_client.set_tension(guild_data["session_id"], value)
+        await interaction.followup.send(
+            f"Tension set to **{value}/10**. {'??' * value}",
+            ephemeral=True,
+        )
+
+
+async def setup(bot) -> None:
+    await bot.add_cog(GMCog(bot))
+7.6 lore_cog.py — Full Code
+
+python — app/discord_bot/cogs/lore_cog.py
+"""Lore Cog — slash commands for lore lookup, powers, and rules queries. Available to all session participants (not GM-restricted)."""
+from __future__ import annotations
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+
+class LoreCog(commands.Cog, name="Lore"):
+    """Lore and rules lookup commands — open to all session players."""
+
+    def __init__(self, bot) -> None:
+        self.bot = bot
+
+    @app_commands.command(name="lore", description="Semantic search of ingested sourcebooks.")
+    @app_commands.describe(query="What you want to know (e.g. 'Giovanni clan history')")
+    async def lore(self, interaction: discord.Interaction, query: str) -> None:
+        await interaction.response.defer(ephemeral=False)
+
+        result = await self.bot.api_client.lore_search(query=query)
+        if not result or not result.get("results"):
+            await interaction.followup.send(
+                f"The Storyteller searches the shadows but finds nothing on: *{query}*\n"
+                "Ensure relevant sourcebooks have been ingested."
+            )
+            return
+
+        top = result["results"][0]
+        content = top.get("content_text", "")
+        embed = discord.Embed(
+            title=f"{top.get('title', 'Lore Fragment')}",
+            description=content[:1500] + ("..." if len(content) > 1500 else ""),
+            color=0x2A1A00,
+        )
+        embed.set_footer(
+            text=(
+                f"Source: {top.get('source_book', 'Unknown')} | "
+                f"p.{top.get('page_number', '?')} | "
+                f"Category: {top.get('category', 'lore')}"
+            )
+        )
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="power", description="Look up a supernatural power description.")
+    @app_commands.describe(name="Power name (e.g. 'Dominate', 'Crinos', 'Forces')", splat="Game line")
+    async def power(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+        splat: str = "any",
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
+
+        query = f"{name} {splat} discipline gift sphere power level system"
+        result = await self.bot.api_client.lore_search(
+            query=query,
+            filter_category="power",
+        )
+
+        if not result or not result.get("results"):
+            await interaction.followup.send(
+                f"No power matching **{name}** found for splat **{splat}**.\n"
+                "Check spelling or ingest the relevant sourcebook."
+            )
+            return
+
+        top = result["results"][0]
+        embed = discord.Embed(
+            title=f"Power: {top.get('title', name)}",
+            description=top.get("content_text", "")[:1500],
+            color=0x4A0000,
+        )
+        embed.set_footer(text=f"Source: {top.get('source_book', '?')} | p.{top.get('page_number', '?')}")
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="rule", description="Look up a rules clarification.")
+    @app_commands.describe(topic="Rules topic (e.g. 'frenzy check', 'combat initiative', 'paradox backlash')")
+    async def rule(self, interaction: discord.Interaction, topic: str) -> None:
+        await interaction.response.defer(ephemeral=False)
+
+        query = f"{topic} rule system dice pool difficulty successes"
+        result = await self.bot.api_client.lore_search(
+            query=query,
+            filter_category="rule",
+        )
+
+        if not result or not result.get("results"):
+            await interaction.followup.send(
+                f"No specific rule found for **{topic}**.\n"
+                "Try rephrasing or checking the relevant sourcebook is ingested."
+            )
+            return
+
+        top = result["results"][0]
+        embed = discord.Embed(
+            title=f"Rule: {topic.title()}",
+            description=top.get("content_text", "")[:1500],
+            color=0x1A2A1A,
+        )
+        embed.set_footer(text=f"Source: {top.get('source_book', '?')} | p.{top.get('page_number', '?')}")
+        await interaction.followup.send(embed=embed)
+
+
+async def setup(bot) -> None:
+    await bot.add_cog(LoreCog(bot))
+7.7 Narrative Channel Flow
+
+The #storyteller-channel pattern is the beating heart of the player-facing experience. Once a session is started and a channel designated with /set-channel, any non-command message posted in that channel by a non-bot user is intercepted by the on_message handler in bot.py and routed to the POST /sessions/{id}/narrate endpoint as a player action.
+The API response is rendered as a rich Discord Embed containing:
+? The AI narration text (up to 2000 characters, paginated if longer)
+? A ? Choices ? field listing the 3 suggested player actions
+? An interactive discord.ui.View with reaction-style buttons for quick action routing
+? A footer crediting the acting player and showing the Storyteller AI watermark
+7.8 Reaction / Button Handlers
+
+python — app/discord_bot/views.py
+"""Discord UI Views — interactive buttons attached to narration response embeds."""
+from __future__ import annotations
+
+import discord
+
+
+class NarrativeResponseView(discord.ui.View):
+    """
+    Buttons attached to each narration embed.
+    Allow players to signal their intent category for the next action,
+    giving the AI contextual hints for narration style.
+    """
+
+    def __init__(self, bot, session_id: str, timeout: float = 300.0) -> None:
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.session_id = session_id
+
+    @discord.ui.button(label="?? Dice Guidance", style=discord.ButtonStyle.secondary)
+    async def dice_guidance(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        """Player wants mechanics guidance for their intended action."""
+        await interaction.response.send_message(
+            "Declare your action in the channel and the Storyteller will narrate "
+            "the outcome with mechanical context. Remember: you describe the action, "
+            "roll your dice, and share the result.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="?? Combat", style=discord.ButtonStyle.danger)
+    async def combat_signal(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        """Player signals they intend a combat action."""
+        await interaction.response.send_message(
+            "Combat declared. Describe your attack or defensive action in the channel. "
+            "Include your dice result if your table rolls physically.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="??? Social", style=discord.ButtonStyle.primary)
+    async def social_signal(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        """Player signals a social / manipulation action."""
+        await interaction.response.send_message(
+            "Social action. State what your character says or how they attempt to "
+            "influence the NPC. The Storyteller will account for your social attributes.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="?? Use Power", style=discord.ButtonStyle.secondary)
+    async def use_power(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        """Player signals supernatural power use."""
+        await interaction.response.send_message(
+            "Power activated. Name the Discipline / Gift / Sphere and describe how "
+            "your character invokes it. Include any resource expenditure (blood, rage, etc.).",
+            ephemeral=True,
+        )
+
+    async def on_timeout(self) -> None:
+        """Disable all buttons when the view times out."""
+        for item in self.children:
+            item.disabled = True
+7.9 Rate Limiting & Cost Management
+
+Uncontrolled use of GPT-4o can generate substantial API costs at scale. The rate limiter enforces two independent safeguards per guild: a per-day token budget and a per-message cooldown window. Both are tracked in Redis with TTL-based keys.
+
+ControlMechanismDefaultConfig KeyDaily Token BudgetRedis counter with 24h TTL, per guild ID200,000 tokens/dayDAILY_TOKEN_BUDGET_PER_GUILDNarration CooldownRedis key with TTL, per guild+channel30 secondsNARRATION_COOLDOWN_SECONDSContext SummarizationAuto-summarize events older than 10 turns to reduce prompt token count10 events maxHardcoded in state engineEmbedding ModelUse text-embedding-3-small (much cheaper than large)$0.02/1M tokensOPENAI_EMBEDDING_MODEL
+
+? COST PROJECTION NOTE
+At average prompt sizes of ~3,000 tokens input + ~700 tokens output per narration call, with GPT-4o pricing of approximately $5/1M input tokens and $15/1M output tokens (as of mid-2025), a session of 20 narration calls costs roughly $0.42. A guild running 5 sessions/week would spend approximately $8–10/month in LLM costs. Budget accordingly and consider offering tiered access.
+7.10 Deployment Notes
+
+Docker Deployment
+The Discord bot runs as a separate process from the FastAPI backend. Add a discord_bot service to docker-compose.yml:
+yaml — docker-compose.yml (discord_bot service addition)
+discord_bot:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  container_name: storyteller_discord
+  command: python -m app.discord_bot.bot
+  environment:
+    - DISCORD_TOKEN=${DISCORD_TOKEN}
+    - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+  env_file:
+    - .env
+  depends_on:
+    - api
+    - redis
+  restart: unless-stopped
+OAuth2 Bot Invite Scopes
+When generating the bot invite URL in the Discord Developer Portal, use the following OAuth2 settings:
+? Scopes: bot, applications.commands
+? Bot Permissions: Read Messages/View Channels, Send Messages, Embed Links, Add Reactions, Read Message History, Use Slash Commands, Manage Messages (optional, for cleanup)
+? Integration Type: Guild Install
+Slash Command Sync
+bash — Slash command sync options
+# Sync globally (up to 1 hour propagation delay)
+await self.tree.sync()
+
+# Sync to a specific guild (instant — use during development)
+TEST_GUILD = discord.Object(id=YOUR_GUILD_ID)
+self.tree.copy_global_to(guild=TEST_GUILD)
+await self.tree.sync(guild=TEST_GUILD)
+
+? DEVELOPMENT vs PRODUCTION
+During development, always sync slash commands to a specific test guild — global sync has a delay of up to one hour and will frustrate rapid iteration. Switch to global sync only when preparing a production release.
+
+Appendix A — Environment Variables Reference
+
+VariableRequiredDescriptionExample ValueSECRET_KEYYesJWT signing secret. Generate with openssl rand -hex 32a3f8b2c1d4...DATABASE_URLYesAsync PostgreSQL connection stringpostgresql+asyncpg://user:pass@localhost/storyteller_dbOPENAI_API_KEYYesOpenAI API key for GPT-4o and embeddingssk-proj-...OPENAI_MODELNoLLM model ID (default: gpt-4o)gpt-4oOPENAI_EMBEDDING_MODELNoEmbedding model IDtext-embedding-3-smallCHROMA_HOSTNoChromaDB service hostnamelocalhost / chromadb (Docker)CHROMA_PORTNoChromaDB service port8001CHROMA_COLLECTION_NAMENoName of the primary ChromaDB collectionwod_loreREDIS_URLNoRedis connection stringredis://localhost:6379/0CELERY_BROKER_URLNoCelery broker URL (same as Redis)redis://localhost:6379/0CELERY_RESULT_BACKENDNoCelery result backend URLredis://localhost:6379/1DISCORD_TOKENYesDiscord bot token from Developer PortalMTIz...DISCORD_CLIENT_IDYesDiscord application client ID1234567890DISCORD_GM_ROLE_NAMENoName of the Discord role required for GM commandsStorytellerDAILY_TOKEN_BUDGET_PER_GUILDNoMax OpenAI tokens per guild per day200000NARRATION_COOLDOWN_SECONDSNoMinimum seconds between narration calls per guild30DEBUGNoEnables /docs, /redoc, verbose loggingfalseALLOWED_ORIGINSNoComma-separated CORS originshttp://localhost:3000PDF_UPLOAD_DIRNoTemp directory for uploaded PDFs/tmp/wod_pdfsMAX_PDF_SIZE_MBNoMaximum PDF upload size in megabytes100
+Appendix B — Testing Strategy
+The test suite is organized into three tiers: unit tests for isolated logic, integration tests for pipeline and route behavior, and mock-LLM tests for route responses that would otherwise incur API costs. All tests use pytest with pytest-asyncio and pytest-mock.
+Unit Tests — State Machine
+
+python — tests/test_state_machine.py
+"""Unit tests for StorytellerStateMachine transitions and meter logic."""
+import pytest
+
+from app.core.state_machine import StorytellerStateMachine
+from app.core.state_machine_models import SessionState
+from app.enums import StateMachineState
+
+
+@pytest.fixture
+def default_state():
+    return SessionState(tension_level=5, doom_clock=0, momentum=0)
+
+
+@pytest.fixture
+def machine(default_state):
+    return StorytellerStateMachine(state=default_state)
+
+
+def test_valid_transition_scene_open_to_player_acting(machine):
+    result = machine.transition_to(StateMachineState.PLAYER_ACTING)
+    assert result is True
+    assert machine.state.machine_state == StateMachineState.PLAYER_ACTING
+
+
+def test_invalid_transition_scene_open_to_combat_without_guard(machine):
+    """Cannot jump directly from SCENE_OPEN to COMBAT — must go through PLAYER_ACTING."""
+    result = machine.transition_to(StateMachineState.COMBAT)
+    assert result is False  # COMBAT not in SCENE_OPEN valid transitions
+
+
+def test_tension_clamping(machine):
+    machine.update_tension(100)
+    assert machine.state.tension_level == 10
+
+    machine.update_tension(-100)
+    assert machine.state.tension_level == 1
+
+
+def test_doom_clock_advances(machine):
+    machine.advance_doom(5)
+    assert machine.state.doom_clock == 5
+
+
+def test_doom_event_triggers_at_12(machine):
+    machine.state.doom_clock = 11
+    result = machine.advance_doom(1)
+    assert result == 12  # Returns 12 briefly before event fires
+    # After event, doom resets to 8
+    assert machine.state.doom_clock == 8
+
+
+def test_serialize_deserialize_roundtrip(machine):
+    machine.update_tension(3)
+    machine.advance_doom(2)
+    serialized = machine.serialize()
+
+    restored = StorytellerStateMachine.deserialize(serialized)
+    assert restored.state.tension_level == machine.state.tension_level
+    assert restored.state.doom_clock == machine.state.doom_clock
+Integration Tests — Ingestion Pipeline
+
+python — tests/test_ingestion.py (excerpt)
+"""Integration tests for the PDF ingestion pipeline."""
+import pytest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from app.ingestion.pdf_parser import WhiteWolfPDFParser
+from app.ingestion.chunk_embedder import classify_chunk, detect_splat_relevance
+from app.enums import LoreCategory, Splat
+
+
+def test_classify_chunk_rule():
+    text = "Roll Strength + Brawl at difficulty 6. Each success inflicts one health level."
+    assert classify_chunk(text) == LoreCategory.RULE
+
+
+def test_classify_chunk_power():
+    text = "Discipline: Dominate •• — Mesmerism. The Kindred locks eyes and speaks one command."
+    assert classify_chunk(text) == LoreCategory.POWER
+
+
+def test_classify_chunk_lore():
+    text = "The Camarilla was founded in 1493 in response to the Anarch Revolt."
+    assert classify_chunk(text) == LoreCategory.LORE
+
+
+def test_detect_splat_vampire():
+    text = "The Kindred drain blood pools to fuel their disciplines."
+    splats = detect_splat_relevance(text, "Kindred Society")
+    assert "vampire" in splats
+
+
+def test_detect_splat_universal():
+    text = "The history of this place stretches back centuries."
+    splats = detect_splat_relevance(text, None)
+    assert splats == ["universal"]
+Mock LLM Route Tests
+
+python — tests/test_routes.py (excerpt)
+"""Route tests using mock LLM client to avoid API costs."""
+import pytest
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from app.main import app
+
+
+@pytest_asyncio.fixture
+async def client():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as ac:
+        yield ac
+
+
+@pytest.mark.asyncio
+async def test_health_check(client):
+    response = await client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "alive"
+
+
+@pytest.mark.asyncio
+async def test_create_session(client):
+    payload = {"name": "Test Chronicle", "mode": "solo", "setting": "vampire"}
+
+    with patch("app.db.crud.create_game_session") as mock_create:
+        mock_session = MagicMock()
+        mock_session.id = "00000000-0000-0000-0000-000000000001"
+        mock_session.name = "Test Chronicle"
+        mock_session.mode.value = "solo"
+        mock_session.setting.value = "vampire"
+        mock_session.is_active = True
+        mock_session.state_json = {}
+        mock_create.return_value = mock_session
+
+        response = await client.post("/api/v1/sessions/", json=payload)
+        assert response.status_code == 201
+Appendix C — Roadmap & Future Enhancements
+The Storyteller AI as described in this document represents a solid, production-ready v1.0 foundation. The following enhancements are planned or proposed for future versions, roughly ordered by implementation complexity.
+
+FeaturePhaseDescriptionKey DependenciesVoice Channel Narration (TTS)v1.1Bot joins Discord voice channel and reads narration aloud using OpenAI TTS or ElevenLabs API. Different voices per NPC.discord.py voice, openai.audio, ffmpegCharacter Sheet Image Parsingv1.2Accept uploaded character sheet images (PDF or PNG), extract stats using GPT-4 Vision, auto-populate Character model.GPT-4o Vision API, Pydantic validationFoundry VTT Integrationv1.3WebSocket bridge between Storyteller AI and Foundry VTT. Sync character sheet data, automate scene changes, receive dice roll results from Foundry.Foundry module API, WebSocket, bidirectional syncLocal LLM Support (Ollama)v1.4Pluggable LLM adapter supporting Ollama + Mistral 7B/22B for fully offline, air-gapped deployments. Lower cost; lower quality trade-off.Ollama API, LangChain adapter, model benchmarkingMulti-Chronicle Managementv2.0Per-guild support for multiple parallel chronicles with separate state, characters, lore scopes, and event histories.Session scoping, guild config model, UI navigationWeb UI Dashboardv2.0Browser-based UI for character sheet management, session review, lore search, ingestion management, and GM dashboard — complementing the Discord interface.React/Next.js or SvelteKit, FastAPI CORS, JWT authAutomated Chronicle Recapv1.5At session end, automatically generate a formatted recap document from the session event log — character of the session, key decisions, doom clock history.Session event summarization, Celery task, Discord embed or PDF outputPlayer-Facing Character Portalv2.1Individual player web pages for character sheet viewing, XP tracking, journal entries, and NPC relationship maps.Auth, per-player data scoping, frontend framework
+
+"The night is darkest just before the dawn. But there is no promise of dawn in the World of Darkness — only the cold certainty that the dark has teeth, and hunger, and patience without end."
+— The Storyteller AI, Session Zero, Chronicle: Indianapolis, June 2026
+
+White Wolf Storyteller AI — Complete System Design Document  |  Version 1.0  |  June 2026
+ Prepared for Michael  |  Indianapolis, IN  |  Internal Technical Reference
+ World of Darkness is a trademark of Paradox Interactive AB. This document describes an independent technical implementation.
