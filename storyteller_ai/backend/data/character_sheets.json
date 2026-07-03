@@ -1,0 +1,606 @@
+{
+  "templates": [
+    {
+      "key": "fantasy-hero-player",
+      "name": "Fantasy Hero (Player)",
+      "genre": "fantasy",
+      "audience": "player",
+      "description": "For high fantasy player characters.",
+      "field_schema": [
+        {
+          "name": "archetype",
+          "label": "Archetype",
+          "type": "text"
+        },
+        {
+          "name": "ancestry",
+          "label": "Ancestry",
+          "type": "text"
+        },
+        {
+          "name": "background",
+          "label": "Background",
+          "type": "textarea"
+        },
+        {
+          "name": "bonds",
+          "label": "Bonds",
+          "type": "textarea"
+        },
+        {
+          "name": "gear",
+          "label": "Key Gear",
+          "type": "textarea"
+        },
+        {
+          "name": "vitality",
+          "label": "Vitality",
+          "type": "number"
+        },
+        {
+          "name": "mana",
+          "label": "Mana",
+          "type": "number"
+        }
+      ],
+      "defaults": {
+        "archetype": "",
+        "ancestry": "",
+        "background": "",
+        "bonds": "",
+        "gear": "",
+        "vitality": 10,
+        "mana": 5
+      }
+    },
+    {
+      "key": "fantasy-storyteller-npc",
+      "name": "Fantasy NPC Board (Storyteller)",
+      "genre": "fantasy",
+      "audience": "storyteller",
+      "description": "For tracking key NPCs and faction pressure.",
+      "field_schema": [
+        {
+          "name": "role",
+          "label": "Narrative Role",
+          "type": "text"
+        },
+        {
+          "name": "faction",
+          "label": "Faction",
+          "type": "text"
+        },
+        {
+          "name": "secrets",
+          "label": "Secrets",
+          "type": "textarea"
+        },
+        {
+          "name": "goals",
+          "label": "Current Goals",
+          "type": "textarea"
+        },
+        {
+          "name": "threat",
+          "label": "Threat Rating",
+          "type": "number"
+        },
+        {
+          "name": "status",
+          "label": "Status",
+          "type": "text"
+        }
+      ],
+      "defaults": {
+        "role": "",
+        "faction": "",
+        "secrets": "",
+        "goals": "",
+        "threat": 1,
+        "status": "active"
+      }
+    },
+    {
+      "key": "sci-fi-operative-player",
+      "name": "Sci-Fi Operative (Player)",
+      "genre": "sci-fi",
+      "audience": "player",
+      "description": "For crews, pilots, and agents in futuristic campaigns.",
+      "field_schema": [
+        {
+          "name": "origin_world",
+          "label": "Origin World",
+          "type": "text"
+        },
+        {
+          "name": "specialty",
+          "label": "Specialty",
+          "type": "text"
+        },
+        {
+          "name": "cybernetics",
+          "label": "Cybernetics",
+          "type": "textarea"
+        },
+        {
+          "name": "crew_role",
+          "label": "Crew Role",
+          "type": "text"
+        },
+        {
+          "name": "stress",
+          "label": "Stress",
+          "type": "number"
+        },
+        {
+          "name": "hull",
+          "label": "Suit/Hull Integrity",
+          "type": "number"
+        }
+      ],
+      "defaults": {
+        "origin_world": "",
+        "specialty": "",
+        "cybernetics": "",
+        "crew_role": "",
+        "stress": 0,
+        "hull": 10
+      }
+    },
+    {
+      "key": "horror-investigator-player",
+      "name": "Horror Investigator (Player)",
+      "genre": "horror",
+      "audience": "player",
+      "description": "For investigation and survival-focused games.",
+      "field_schema": [
+        {
+          "name": "occupation",
+          "label": "Occupation",
+          "type": "text"
+        },
+        {
+          "name": "anchor",
+          "label": "Anchor to Reality",
+          "type": "text"
+        },
+        {
+          "name": "trauma",
+          "label": "Trauma Notes",
+          "type": "textarea"
+        },
+        {
+          "name": "clues",
+          "label": "Known Clues",
+          "type": "textarea"
+        },
+        {
+          "name": "health",
+          "label": "Health",
+          "type": "number"
+        },
+        {
+          "name": "sanity",
+          "label": "Sanity",
+          "type": "number"
+        }
+      ],
+      "defaults": {
+        "occupation": "",
+        "anchor": "",
+        "trauma": "",
+        "clues": "",
+        "health": 8,
+        "sanity": 8
+      }
+    },
+    {
+      "key": "horror-storyteller-threat",
+      "name": "Horror Threat Clock (Storyteller)",
+      "genre": "horror",
+      "audience": "storyteller",
+      "description": "For pacing dread, clues, and manifestations.",
+      "field_schema": [
+        {
+          "name": "entity",
+          "label": "Entity",
+          "type": "text"
+        },
+        {
+          "name": "omen",
+          "label": "Current Omen",
+          "type": "textarea"
+        },
+        {
+          "name": "weakness",
+          "label": "Known Weakness",
+          "type": "text"
+        },
+        {
+          "name": "clock",
+          "label": "Dread Clock (0-12)",
+          "type": "number"
+        },
+        {
+          "name": "locations",
+          "label": "Hot Locations",
+          "type": "textarea"
+        }
+      ],
+      "defaults": {
+        "entity": "",
+        "omen": "",
+        "weakness": "",
+        "clock": 0,
+        "locations": ""
+      }
+    },
+    {
+      "key": "noir-detective-player",
+      "name": "Noir Detective (Player)",
+      "genre": "noir",
+      "audience": "player",
+      "description": "For mystery, intrigue, and hardboiled city stories.",
+      "field_schema": [
+        {
+          "name": "vice",
+          "label": "Vice",
+          "type": "text"
+        },
+        {
+          "name": "contact",
+          "label": "Reliable Contact",
+          "type": "text"
+        },
+        {
+          "name": "case_notes",
+          "label": "Case Notes",
+          "type": "textarea"
+        },
+        {
+          "name": "heat",
+          "label": "Heat",
+          "type": "number"
+        },
+        {
+          "name": "grit",
+          "label": "Grit",
+          "type": "number"
+        }
+      ],
+      "defaults": {
+        "vice": "",
+        "contact": "",
+        "case_notes": "",
+        "heat": 0,
+        "grit": 6
+      }
+    }
+  ],
+  "sheets": {
+    "494b06f4-e6ac-469b-817b-ff3ee79fe702": {
+      "sheet_id": "494b06f4-e6ac-469b-817b-ff3ee79fe702",
+      "template_key": "fantasy-hero-player",
+      "name": "Sir Rowan",
+      "session_id": null,
+      "genre": "fantasy",
+      "audience": "player",
+      "description": "For high fantasy player characters.",
+      "field_schema": [
+        {
+          "name": "archetype",
+          "label": "Archetype",
+          "type": "text"
+        },
+        {
+          "name": "ancestry",
+          "label": "Ancestry",
+          "type": "text"
+        },
+        {
+          "name": "background",
+          "label": "Background",
+          "type": "textarea"
+        },
+        {
+          "name": "bonds",
+          "label": "Bonds",
+          "type": "textarea"
+        },
+        {
+          "name": "gear",
+          "label": "Key Gear",
+          "type": "textarea"
+        },
+        {
+          "name": "vitality",
+          "label": "Vitality",
+          "type": "number"
+        },
+        {
+          "name": "mana",
+          "label": "Mana",
+          "type": "number"
+        }
+      ],
+      "fields": {
+        "archetype": "Knight",
+        "ancestry": "",
+        "background": "",
+        "bonds": "",
+        "gear": "",
+        "vitality": 10,
+        "mana": 5
+      },
+      "created_at": "2026-07-03T13:10:04.022644+00:00",
+      "updated_at": "2026-07-03T13:10:04.022644+00:00"
+    },
+    "dda81779-4b25-48b9-8c48-334e4388a4e7": {
+      "sheet_id": "dda81779-4b25-48b9-8c48-334e4388a4e7",
+      "template_key": "horror-investigator-player",
+      "name": "Mina Hale",
+      "session_id": null,
+      "genre": "horror",
+      "audience": "player",
+      "description": "For investigation and survival-focused games.",
+      "field_schema": [
+        {
+          "name": "occupation",
+          "label": "Occupation",
+          "type": "text"
+        },
+        {
+          "name": "anchor",
+          "label": "Anchor to Reality",
+          "type": "text"
+        },
+        {
+          "name": "trauma",
+          "label": "Trauma Notes",
+          "type": "textarea"
+        },
+        {
+          "name": "clues",
+          "label": "Known Clues",
+          "type": "textarea"
+        },
+        {
+          "name": "health",
+          "label": "Health",
+          "type": "number"
+        },
+        {
+          "name": "sanity",
+          "label": "Sanity",
+          "type": "number"
+        }
+      ],
+      "fields": {
+        "occupation": "Archivist",
+        "anchor": "",
+        "trauma": "",
+        "clues": "",
+        "health": 8,
+        "sanity": 8
+      },
+      "created_at": "2026-07-03T13:10:04.058368+00:00",
+      "updated_at": "2026-07-03T13:10:04.058368+00:00"
+    },
+    "baf8f231-4cab-430e-9f52-2804a6270d41": {
+      "sheet_id": "baf8f231-4cab-430e-9f52-2804a6270d41",
+      "template_key": "fantasy-hero-player",
+      "name": "Sir Rowan",
+      "session_id": null,
+      "genre": "fantasy",
+      "audience": "player",
+      "description": "For high fantasy player characters.",
+      "field_schema": [
+        {
+          "name": "archetype",
+          "label": "Archetype",
+          "type": "text"
+        },
+        {
+          "name": "ancestry",
+          "label": "Ancestry",
+          "type": "text"
+        },
+        {
+          "name": "background",
+          "label": "Background",
+          "type": "textarea"
+        },
+        {
+          "name": "bonds",
+          "label": "Bonds",
+          "type": "textarea"
+        },
+        {
+          "name": "gear",
+          "label": "Key Gear",
+          "type": "textarea"
+        },
+        {
+          "name": "vitality",
+          "label": "Vitality",
+          "type": "number"
+        },
+        {
+          "name": "mana",
+          "label": "Mana",
+          "type": "number"
+        }
+      ],
+      "fields": {
+        "archetype": "Knight",
+        "ancestry": "",
+        "background": "",
+        "bonds": "",
+        "gear": "",
+        "vitality": 10,
+        "mana": 5
+      },
+      "created_at": "2026-07-03T13:25:57.259017+00:00",
+      "updated_at": "2026-07-03T13:25:57.259017+00:00"
+    },
+    "fcef795f-b4a7-44e4-852a-2913212c96b0": {
+      "sheet_id": "fcef795f-b4a7-44e4-852a-2913212c96b0",
+      "template_key": "horror-investigator-player",
+      "name": "Mina Hale",
+      "session_id": null,
+      "genre": "horror",
+      "audience": "player",
+      "description": "For investigation and survival-focused games.",
+      "field_schema": [
+        {
+          "name": "occupation",
+          "label": "Occupation",
+          "type": "text"
+        },
+        {
+          "name": "anchor",
+          "label": "Anchor to Reality",
+          "type": "text"
+        },
+        {
+          "name": "trauma",
+          "label": "Trauma Notes",
+          "type": "textarea"
+        },
+        {
+          "name": "clues",
+          "label": "Known Clues",
+          "type": "textarea"
+        },
+        {
+          "name": "health",
+          "label": "Health",
+          "type": "number"
+        },
+        {
+          "name": "sanity",
+          "label": "Sanity",
+          "type": "number"
+        }
+      ],
+      "fields": {
+        "occupation": "Archivist",
+        "anchor": "",
+        "trauma": "",
+        "clues": "",
+        "health": 8,
+        "sanity": 8
+      },
+      "created_at": "2026-07-03T13:25:57.412648+00:00",
+      "updated_at": "2026-07-03T13:25:57.412648+00:00"
+    },
+    "b372d69e-0e86-4218-80e9-10694c8c8d8d": {
+      "sheet_id": "b372d69e-0e86-4218-80e9-10694c8c8d8d",
+      "template_key": "fantasy-hero-player",
+      "name": "Sir Rowan",
+      "session_id": null,
+      "genre": "fantasy",
+      "audience": "player",
+      "description": "For high fantasy player characters.",
+      "field_schema": [
+        {
+          "name": "archetype",
+          "label": "Archetype",
+          "type": "text"
+        },
+        {
+          "name": "ancestry",
+          "label": "Ancestry",
+          "type": "text"
+        },
+        {
+          "name": "background",
+          "label": "Background",
+          "type": "textarea"
+        },
+        {
+          "name": "bonds",
+          "label": "Bonds",
+          "type": "textarea"
+        },
+        {
+          "name": "gear",
+          "label": "Key Gear",
+          "type": "textarea"
+        },
+        {
+          "name": "vitality",
+          "label": "Vitality",
+          "type": "number"
+        },
+        {
+          "name": "mana",
+          "label": "Mana",
+          "type": "number"
+        }
+      ],
+      "fields": {
+        "archetype": "Knight",
+        "ancestry": "",
+        "background": "",
+        "bonds": "",
+        "gear": "",
+        "vitality": 10,
+        "mana": 5
+      },
+      "created_at": "2026-07-03T13:26:35.513721+00:00",
+      "updated_at": "2026-07-03T13:26:35.513721+00:00"
+    },
+    "668d0f53-64db-4e24-9427-6cbe0792ac19": {
+      "sheet_id": "668d0f53-64db-4e24-9427-6cbe0792ac19",
+      "template_key": "horror-investigator-player",
+      "name": "Mina Hale",
+      "session_id": null,
+      "genre": "horror",
+      "audience": "player",
+      "description": "For investigation and survival-focused games.",
+      "field_schema": [
+        {
+          "name": "occupation",
+          "label": "Occupation",
+          "type": "text"
+        },
+        {
+          "name": "anchor",
+          "label": "Anchor to Reality",
+          "type": "text"
+        },
+        {
+          "name": "trauma",
+          "label": "Trauma Notes",
+          "type": "textarea"
+        },
+        {
+          "name": "clues",
+          "label": "Known Clues",
+          "type": "textarea"
+        },
+        {
+          "name": "health",
+          "label": "Health",
+          "type": "number"
+        },
+        {
+          "name": "sanity",
+          "label": "Sanity",
+          "type": "number"
+        }
+      ],
+      "fields": {
+        "occupation": "Archivist",
+        "anchor": "",
+        "trauma": "",
+        "clues": "",
+        "health": 8,
+        "sanity": 8
+      },
+      "created_at": "2026-07-03T13:26:35.551273+00:00",
+      "updated_at": "2026-07-03T13:26:35.551273+00:00"
+    }
+  }
+}

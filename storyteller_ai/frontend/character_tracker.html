@@ -3,68 +3,297 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Character Tracker</title>
+  <title>Character Sheets</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #0f172a; color: #e2e8f0; }
-    .page { max-width: 960px; margin: 0 auto; padding: 24px; }
-    h1, h2 { margin-bottom: 12px; color: #f8fafc; }
-    .card { background: #111827; border: 1px solid #334155; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+    :root {
+      --page-bg: radial-gradient(circle at 12% 10%, #1f2937 0%, #0a0f1d 42%, #09090b 100%);
+      --card-bg: rgba(16, 24, 40, 0.88);
+      --panel-bg: rgba(6, 16, 31, 0.9);
+      --text-main: #eef2ff;
+      --text-muted: #b8c5d9;
+      --accent: #f97316;
+      --accent-soft: #fed7aa;
+      --border: #334155;
+      --focus: #facc15;
+    }
+
+    body[data-genre="fantasy"] {
+      --page-bg: radial-gradient(circle at 15% 15%, #33211f 0%, #1a1110 42%, #09090b 100%);
+      --accent: #d97706;
+      --accent-soft: #fde68a;
+    }
+
+    body[data-genre="sci-fi"] {
+      --page-bg: radial-gradient(circle at 16% 10%, #10263f 0%, #0b1428 45%, #070b16 100%);
+      --accent: #06b6d4;
+      --accent-soft: #a5f3fc;
+    }
+
+    body[data-genre="horror"] {
+      --page-bg: radial-gradient(circle at 17% 8%, #2a0d0d 0%, #170808 45%, #09090b 100%);
+      --accent: #dc2626;
+      --accent-soft: #fecaca;
+    }
+
+    body[data-genre="noir"] {
+      --page-bg: radial-gradient(circle at 12% 8%, #2b2b2e 0%, #111217 45%, #09090b 100%);
+      --accent: #a3a3a3;
+      --accent-soft: #f5f5f5;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--text-main);
+      font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -999px;
+      top: 8px;
+      background: #0f172a;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--focus);
+      z-index: 1000;
+    }
+
+    .skip-link:focus {
+      left: 12px;
+    }
+
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 24px 18px 48px;
+    }
+
+    .header {
+      margin-bottom: 18px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(120deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+    }
+
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 2.5vw, 2.3rem); }
+    h2 { margin-top: 0; }
+    p { margin-top: 0; color: var(--text-muted); }
+
+    .link-row,
+    .button-row,
+    .session-row,
+    .template-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .layout {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      backdrop-filter: blur(1.5px);
+    }
+
     label { display: block; margin-bottom: 6px; font-weight: 600; }
-    input[type="text"], textarea, select { width: 100%; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; padding: 12px; font-size: 14px; }
-    button { background: #2563eb; border: none; border-radius: 9999px; color: white; padding: 12px 20px; cursor: pointer; font-size: 14px; transition: background 0.2s ease; }
-    button:hover { background: #1d4ed8; }
-    .row { display: grid; gap: 20px; }
-    .grid-2 { grid-template-columns: 1fr 1fr; }
-    .result { white-space: pre-wrap; background: #0b1120; padding: 16px; border-radius: 14px; border: 1px solid #334155; min-height: 140px; }
-    .character-list { list-style: none; padding-left: 0; }
-    .character-list li { margin-bottom: 8px; }
-    .hint { color: #94a3b8; font-size: 13px; margin-top: 8px; }
-    .link-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #475569;
+      background: var(--panel-bg);
+      color: var(--text-main);
+      padding: 10px;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+    }
+
+    textarea { min-height: 90px; resize: vertical; }
+
+    button {
+      background: var(--accent);
+      border: 1px solid transparent;
+      border-radius: 999px;
+      color: #0f172a;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.15s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button.secondary {
+      background: transparent;
+      color: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    button:focus,
+    input:focus,
+    textarea:focus,
+    select:focus,
+    a:focus {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .sheet-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 360px;
+      overflow: auto;
+    }
+
+    .sheet-list li {
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .sheet-list button {
+      width: 100%;
+      text-align: left;
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .status-box {
+      margin-top: 8px;
+      min-height: 24px;
+      color: var(--accent-soft);
+      font-size: 0.95rem;
+    }
+
+    .muted { color: var(--text-muted); font-size: 0.9rem; }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 920px) {
+      .layout { grid-template-columns: 1fr; }
+      .field-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
-<body>
-<div class="page">
-  <h1>Character Tracker</h1>
-  <div class="link-row">
-    <button onclick="window.location.href='index.html'">Home</button>
-    <button onclick="window.location.href='setup.html'">Setup</button>
-  </div>
+<body data-genre="fantasy">
+<a class="skip-link" href="#sheet-editor">Skip to character sheet editor</a>
+<div class="page" role="application" aria-label="Character sheet manager">
+  <header class="header">
+    <h1>Accessible Character Sheets</h1>
+    <p>Create genre-aware sheets for both storytellers and players, save them internally, and export to PDF or Word.</p>
+    <div class="link-row" aria-label="Navigation">
+      <button onclick="window.location.href='index.html'">Home</button>
+      <button onclick="window.location.href='setup.html'">Setup</button>
+    </div>
+  </header>
 
-  <div class="card">
-    <h2>Select session</h2>
-    <label for="session-select">Active sessions</label>
-    <select id="session-select"></select>
-    <button id="load-session">Load Session</button>
-    <div class="result" id="session-info"></div>
-  </div>
+  <div class="layout">
+    <section class="card" id="sheet-editor" aria-labelledby="editor-title">
+      <h2 id="editor-title">Sheet Editor</h2>
+      <div class="session-row">
+        <div style="flex:1 1 280px;">
+          <label for="session-select">Session</label>
+          <select id="session-select" aria-describedby="session-hint"></select>
+          <p id="session-hint" class="muted">Pick a live session, or keep blank for a standalone sheet.</p>
+        </div>
+        <div style="flex:1 1 180px;">
+          <label for="audience-select">Used By</label>
+          <select id="audience-select">
+            <option value="player">Player</option>
+            <option value="storyteller">Storyteller</option>
+          </select>
+        </div>
+        <div style="flex:1 1 180px;">
+          <label for="genre-select">Genre</label>
+          <select id="genre-select">
+            <option value="fantasy">Fantasy</option>
+            <option value="sci-fi">Sci-Fi</option>
+            <option value="horror">Horror</option>
+            <option value="noir">Noir</option>
+          </select>
+        </div>
+      </div>
 
-  <div class="card">
-    <h2>Create character</h2>
-    <label for="tracker-session-id">Session ID</label>
-    <input id="tracker-session-id" type="text" placeholder="session id" />
-    <label for="tracker-name">Name</label>
-    <input id="tracker-name" type="text" placeholder="Character name" />
-    <label for="tracker-clan">Clan / Type</label>
-    <input id="tracker-clan" type="text" placeholder="Vampire clan, changeling court, etc." />
-    <label for="tracker-notes">Notes</label>
-    <textarea id="tracker-notes" rows="3" placeholder="Background, traits, or tracking notes"></textarea>
-    <button id="add-character">Add Character</button>
-    <div class="result" id="tracker-result"></div>
-  </div>
+      <div class="template-row">
+        <div style="flex:1 1 300px;">
+          <label for="template-select">Template</label>
+          <select id="template-select"></select>
+        </div>
+        <div style="flex:1 1 300px;">
+          <label for="sheet-name">Sheet Name</label>
+          <input id="sheet-name" type="text" placeholder="Character or tracker name" />
+        </div>
+      </div>
 
-  <div class="card">
-    <h2>Session characters</h2>
-    <button id="refresh-characters">Refresh Character List</button>
-    <ul class="character-list" id="character-list"></ul>
+      <form id="sheet-form" novalidate>
+        <fieldset style="border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+          <legend>Template Fields</legend>
+          <div id="dynamic-fields" class="field-grid"></div>
+        </fieldset>
+      </form>
+
+      <div class="button-row" style="margin-top: 14px;">
+        <button id="new-sheet" class="secondary" type="button">New Sheet</button>
+        <button id="save-sheet" type="button">Save Internally</button>
+        <button id="export-pdf" class="secondary" type="button">Export PDF</button>
+        <button id="export-docx" class="secondary" type="button">Export Word (.docx)</button>
+      </div>
+      <div id="status-message" class="status-box" aria-live="polite"></div>
+    </section>
+
+    <aside class="card" aria-labelledby="saved-title">
+      <h2 id="saved-title">Saved Sheets</h2>
+      <p class="muted">Select a saved sheet to continue editing or export it.</p>
+      <div class="button-row">
+        <button id="refresh-sheets" class="secondary" type="button">Refresh List</button>
+      </div>
+      <ul id="sheet-list" class="sheet-list" aria-label="Saved character sheets"></ul>
+    </aside>
   </div>
 </div>
 <script>
   const apiBase = window.location.origin;
   let activeSessions = {};
+  let templates = [];
+  let currentSheetId = null;
+
+  function announce(message) {
+    document.getElementById('status-message').textContent = message;
+  }
+
+  function setGenreTheme(genre) {
+    document.body.setAttribute('data-genre', genre || 'fantasy');
+  }
 
   async function loadActiveSessions() {
     const select = document.getElementById('session-select');
-    select.innerHTML = '';
+    select.innerHTML = '<option value="">Standalone (no session)</option>';
 
     try {
       const response = await fetch(`${apiBase}/sessions`);
@@ -74,91 +303,257 @@
         for (const [sessionId, session] of Object.entries(activeSessions)) {
           const option = document.createElement('option');
           option.value = sessionId;
-          option.textContent = `${session.title || 'Untitled'} (${session.setting || 'No setting'}) - ${sessionId.substring(0, 8)}...`;
+          option.textContent = `${session.title || 'Untitled'} (${session.setting || 'No setting'})`;
           select.appendChild(option);
         }
       }
     } catch (error) {
       console.error('Failed to load sessions:', error);
-      select.innerHTML = '<option>No sessions available</option>';
+      announce('Unable to load sessions right now. You can still use standalone sheets.');
     }
   }
 
-  async function loadSession() {
-    const sessionId = document.getElementById('session-select').value;
-    if (!sessionId) {
-      document.getElementById('session-info').textContent = 'Select a session first.';
-      return;
-    }
-
-    const response = await fetch(`${apiBase}/sessions/${sessionId}`);
-    const data = await response.json();
-
-    document.getElementById('tracker-session-id').value = sessionId;
-    document.getElementById('session-info').textContent = JSON.stringify(
-      {
-        title: data.state.campaign?.title || 'Untitled',
-        setting: data.state.campaign?.setting || 'Unknown',
-        mode: data.mode,
-        characters: data.state.characters?.length || 0,
-      },
-      null,
-      2
-    );
-    await refreshCharacters();
+  function selectedTemplate() {
+    const templateKey = document.getElementById('template-select').value;
+    return templates.find((item) => item.key === templateKey);
   }
 
-  async function addCharacter() {
-    const sessionId = document.getElementById('tracker-session-id').value;
-    const name = document.getElementById('tracker-name').value;
-    const clan = document.getElementById('tracker-clan').value;
-    const notes = document.getElementById('tracker-notes').value;
-
-    if (!sessionId || !name) {
-      document.getElementById('tracker-result').textContent = 'Session ID and character name are required.';
+  function renderDynamicFields(sheetData = null) {
+    const container = document.getElementById('dynamic-fields');
+    container.innerHTML = '';
+    const template = selectedTemplate();
+    if (!template) {
+      container.innerHTML = '<p class="muted">No template available for this filter.</p>';
       return;
     }
 
-    const response = await fetch(`${apiBase}/sessions/${sessionId}/characters`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, clan, notes}),
+    const sourceValues = sheetData && sheetData.fields ? sheetData.fields : template.defaults || {};
+
+    for (const field of template.field_schema || []) {
+      const wrapper = document.createElement('div');
+      if (field.type === 'textarea') {
+        wrapper.className = 'full-width';
+      }
+
+      const label = document.createElement('label');
+      label.setAttribute('for', `field-${field.name}`);
+      label.textContent = field.label || field.name;
+      wrapper.appendChild(label);
+
+      const value = sourceValues[field.name] ?? '';
+      let input;
+      if (field.type === 'textarea') {
+        input = document.createElement('textarea');
+      } else {
+        input = document.createElement('input');
+        input.type = field.type === 'number' ? 'number' : 'text';
+      }
+      input.id = `field-${field.name}`;
+      input.dataset.fieldName = field.name;
+      input.value = value;
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+    }
+  }
+
+  function collectFormFields() {
+    const values = {};
+    const inputs = document.querySelectorAll('[data-field-name]');
+    inputs.forEach((input) => {
+      const key = input.dataset.fieldName;
+      values[key] = input.type === 'number' ? Number(input.value || 0) : input.value;
     });
-    const data = await response.json();
-    document.getElementById('tracker-result').textContent = JSON.stringify(data, null, 2);
-    document.getElementById('tracker-name').value = '';
-    document.getElementById('tracker-clan').value = '';
-    document.getElementById('tracker-notes').value = '';
-    await refreshCharacters();
+    return values;
   }
 
-  async function refreshCharacters() {
-    const sessionId = document.getElementById('tracker-session-id').value;
-    if (!sessionId) {
-      document.getElementById('character-list').innerHTML = '<li>Enter a session ID to load characters.</li>';
+  async function loadTemplates() {
+    const genre = document.getElementById('genre-select').value;
+    const audience = document.getElementById('audience-select').value;
+    setGenreTheme(genre);
+
+    try {
+      const response = await fetch(`${apiBase}/character-sheets/templates?genre=${encodeURIComponent(genre)}&audience=${encodeURIComponent(audience)}`);
+      const data = await response.json();
+      templates = data.templates || [];
+
+      const select = document.getElementById('template-select');
+      select.innerHTML = '';
+      for (const template of templates) {
+        const option = document.createElement('option');
+        option.value = template.key;
+        option.textContent = template.name;
+        select.appendChild(option);
+      }
+
+      if (templates.length) {
+        if (!document.getElementById('sheet-name').value.trim()) {
+          document.getElementById('sheet-name').value = templates[0].name;
+        }
+        renderDynamicFields();
+      } else {
+        document.getElementById('dynamic-fields').innerHTML = '<p class="muted">No templates found for this combination.</p>';
+      }
+    } catch (error) {
+      console.error(error);
+      announce('Could not load templates.');
+    }
+  }
+
+  async function saveSheet() {
+    const name = document.getElementById('sheet-name').value.trim();
+    if (!name) {
+      announce('Please enter a sheet name.');
       return;
     }
 
-    const response = await fetch(`${apiBase}/sessions/${sessionId}`);
-    const data = await response.json();
-    const list = document.getElementById('character-list');
-    list.innerHTML = '';
-    if (!data.state.characters || !data.state.characters.length) {
-      list.innerHTML = '<li>No characters yet.</li>';
+    const template = selectedTemplate();
+    if (!template && !currentSheetId) {
+      announce('Please choose a template.');
       return;
     }
 
-    for (const character of data.state.characters) {
-      const item = document.createElement('li');
-      item.textContent = `${character.name} (${character.clan || 'No clan'}) - ${character.notes || 'No notes'}`;
-      list.appendChild(item);
+    const sessionId = document.getElementById('session-select').value || null;
+    const fields = collectFormFields();
+
+    const path = currentSheetId ? `${apiBase}/character-sheets/${currentSheetId}` : `${apiBase}/character-sheets/`;
+    const method = currentSheetId ? 'PUT' : 'POST';
+    const payload = currentSheetId
+      ? { name, fields }
+      : {
+          template_key: template.key,
+          name,
+          session_id: sessionId,
+          fields,
+        };
+
+    try {
+      const response = await fetch(path, {
+        method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error('Save failed');
+      }
+      const data = await response.json();
+      currentSheetId = data.sheet.sheet_id;
+      announce(`Saved: ${data.sheet.name}`);
+      await refreshSheets();
+    } catch (error) {
+      console.error(error);
+      announce('Unable to save this sheet.');
     }
   }
 
-  document.getElementById('load-session').addEventListener('click', loadSession);
-  document.getElementById('add-character').addEventListener('click', addCharacter);
-  document.getElementById('refresh-characters').addEventListener('click', refreshCharacters);
-  loadActiveSessions();
+  async function refreshSheets() {
+    const sessionId = document.getElementById('session-select').value;
+    const url = sessionId
+      ? `${apiBase}/character-sheets?session_id=${encodeURIComponent(sessionId)}`
+      : `${apiBase}/character-sheets`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      const list = document.getElementById('sheet-list');
+      list.innerHTML = '';
+
+      const sheets = data.sheets || [];
+      if (!sheets.length) {
+        list.innerHTML = '<li class="muted">No saved sheets yet.</li>';
+        return;
+      }
+
+      for (const sheet of sheets) {
+        const item = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = `${sheet.name} • ${sheet.genre} • ${sheet.audience}`;
+        button.addEventListener('click', () => loadSheet(sheet.sheet_id));
+        item.appendChild(button);
+        list.appendChild(item);
+      }
+    } catch (error) {
+      console.error(error);
+      announce('Could not load saved sheets.');
+    }
+  }
+
+  async function loadSheet(sheetId) {
+    try {
+      const response = await fetch(`${apiBase}/character-sheets/${sheetId}`);
+      if (!response.ok) {
+        throw new Error('Sheet load failed');
+      }
+      const data = await response.json();
+      const sheet = data.sheet;
+
+      currentSheetId = sheet.sheet_id;
+      document.getElementById('sheet-name').value = sheet.name || '';
+      document.getElementById('genre-select').value = sheet.genre || 'fantasy';
+      document.getElementById('audience-select').value = sheet.audience || 'player';
+
+      await loadTemplates();
+      document.getElementById('template-select').value = sheet.template_key;
+      renderDynamicFields(sheet);
+
+      if (sheet.session_id) {
+        document.getElementById('session-select').value = sheet.session_id;
+      }
+
+      announce(`Loaded: ${sheet.name}`);
+    } catch (error) {
+      console.error(error);
+      announce('Could not load the selected sheet.');
+    }
+  }
+
+  function startNewSheet() {
+    currentSheetId = null;
+    document.getElementById('sheet-name').value = '';
+    renderDynamicFields();
+    announce('Ready for a new sheet.');
+  }
+
+  function exportSheet(format) {
+    if (!currentSheetId) {
+      announce('Save the sheet before exporting.');
+      return;
+    }
+    const url = `${apiBase}/character-sheets/${currentSheetId}/export?format=${format}`;
+    window.open(url, '_blank');
+    announce(`Export started (${format.toUpperCase()}).`);
+  }
+
+  document.getElementById('genre-select').addEventListener('change', async () => {
+    await loadTemplates();
+  });
+  document.getElementById('audience-select').addEventListener('change', async () => {
+    await loadTemplates();
+  });
+  document.getElementById('template-select').addEventListener('change', () => {
+    if (!currentSheetId) {
+      const chosen = selectedTemplate();
+      if (chosen) {
+        document.getElementById('sheet-name').value = chosen.name;
+      }
+    }
+    renderDynamicFields();
+  });
+  document.getElementById('session-select').addEventListener('change', refreshSheets);
+  document.getElementById('save-sheet').addEventListener('click', saveSheet);
+  document.getElementById('new-sheet').addEventListener('click', startNewSheet);
+  document.getElementById('refresh-sheets').addEventListener('click', refreshSheets);
+  document.getElementById('export-pdf').addEventListener('click', () => exportSheet('pdf'));
+  document.getElementById('export-docx').addEventListener('click', () => exportSheet('docx'));
+
+  async function init() {
+    await loadActiveSessions();
+    await loadTemplates();
+    await refreshSheets();
+    announce('Character sheet editor ready.');
+  }
+
+  init();
 </script>
 </body>
 </html>
