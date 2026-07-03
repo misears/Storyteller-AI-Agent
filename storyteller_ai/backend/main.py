@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .routers import documents, gm, sessions
+from .routers import character_sheets, documents, gm, sessions
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -19,6 +19,7 @@ app.add_middleware(
 app.include_router(documents.router)
 app.include_router(gm.router)
 app.include_router(sessions.router)
+app.include_router(character_sheets.router)
 
 
 @app.get("/health")

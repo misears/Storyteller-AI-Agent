@@ -6,7 +6,7 @@
     {
       "label": "Run Tests",
       "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": [
         "-m",
         "pytest",
@@ -22,11 +22,12 @@
     {
       "label": "Lint (flake8)",
       "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": [
         "-m",
         "flake8",
-        "storyteller_ai"
+        "backend",
+        "tests"
       ],
       "group": "build",
       "presentation": {
@@ -38,12 +39,13 @@
     {
       "label": "Lint (ruff)",
       "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": [
         "-m",
         "ruff",
         "check",
-        "storyteller_ai"
+        "backend",
+        "tests"
       ],
       "group": "build",
       "presentation": {
@@ -55,17 +57,13 @@
     {
       "label": "Test + Lint",
       "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python",
+      "command": "pwsh",
       "args": [
-        "-m",
-        "pytest",
-        "-q",
-        "&&",
-        "${workspaceFolder}/venv/Scripts/python",
-        "-m",
-        "ruff",
-        "check",
-        "storyteller_ai"
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/run_test_lint.ps1"
       ],
       "group": "test",
       "presentation": {
@@ -77,11 +75,11 @@
     {
       "label": "Run Backend (Uvicorn Auto-Reload)",
       "type": "shell",
-      "command": "${workspaceFolder}/venv/Scripts/python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": [
         "-m",
         "uvicorn",
-        "storyteller_ai.backend.main:app",
+        "backend.main:app",
         "--reload",
         "--host",
         "127.0.0.1",

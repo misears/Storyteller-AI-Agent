@@ -81,7 +81,7 @@ class OpenAIProvider(BaseProvider):
 
     async def stream(self, system_prompt: str, user_message: str) -> AsyncGenerator[str, None]:
         stream = await self.client.chat.completions.create(
-            model=LLM_MODEL,
+            model=_get_llm_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
