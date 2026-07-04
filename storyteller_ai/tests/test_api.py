@@ -87,6 +87,33 @@ def test_upload_document():
     assert body["documents"][0]["title"] == "test_upload.pdf"
 
 
+def test_delete_document():
+    buf = io.BytesIO()
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Test PDF delete content.")
+    doc.save(buf)
+    doc.close()
+    buf.seek(0)
+
+    async def request_upload_then_delete():
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            files = {"files": ("test_delete.pdf", buf.read(), "application/pdf")}
+            upload_response = await client.post("/documents/upload", files=files)
+            uploaded_id = upload_response.json()["documents"][0]["document_id"]
+
+            delete_response = await client.delete(f"/documents/{uploaded_id}")
+            list_response = await client.get("/documents/list")
+            return upload_response, delete_response, list_response, uploaded_id
+
+    upload_response, delete_response, list_response, uploaded_id = _run_async(request_upload_then_delete())
+    assert upload_response.status_code == 200
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
+    remaining_ids = [doc["document_id"] for doc in list_response.json()["documents"]]
+    assert uploaded_id not in remaining_ids
+
+
 def test_health_endpoint():
     response = _run_async(_submit_request("get", "/health"))
 
@@ -153,3 +180,64 @@ def test_character_sheet_export_docx():
     archive = zipfile.ZipFile(io.BytesIO(export_response.content))
     names = set(archive.namelist())
     assert "word/document.xml" in names
+
+
+def test_ocr_status_endpoint():
+    response = _run_async(_submit_request("get", "/settings/ocr"))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "active" in body
+    assert "detail" in body
+    assert isinstance(body["active"], bool)
+    assert isinstance(body["detail"], str)
+
+
+def test_update_document_genres():
+    buf = io.BytesIO()
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Test PDF genre tagging.")
+    doc.save(buf)
+    doc.close()
+    buf.seek(0)
+
+    async def request_upload_then_tag_then_list():
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            files = {"files": ("test_genre.pdf", buf.read(), "application/pdf")}
+            upload_response = await client.post("/documents/upload", files=files)
+            uploaded_id = upload_response.json()["documents"][0]["document_id"]
+
+            tag_response = await client.put(
+                f"/documents/{uploaded_id}/genres",
+                json={"genres": ["vampire", "werewolf"]},
+            )
+            list_response = await client.get("/documents/list")
+            return upload_response, tag_response, list_response, uploaded_id
+
+    upload_response, tag_response, list_response, uploaded_id = _run_async(request_upload_then_tag_then_list())
+    assert upload_response.status_code == 200
+    assert tag_response.status_code == 200
+    tagged_doc = next(doc for doc in list_response.json()["documents"] if doc["document_id"] == uploaded_id)
+    assert tagged_doc["genres"] == ["vampire", "werewolf"]
+
+
+def test_session_create_with_campaign_genres(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    response = _run_async(
+        _submit_request(
+            "post",
+            "/sessions/create",
+            json={
+                "mode": "group",
+                "setting": "Old World of Darkness",
+                "campaign_genres": ["vampire", "mage"],
+                "document_ids": ["book-one", "book-two"],
+            },
+        )
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["campaign_genres"] == ["vampire", "mage"]
+    assert body["document_ids"] == ["book-one", "book-two"]
