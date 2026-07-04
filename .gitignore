@@ -1,0 +1,33 @@
+# Python virtual environments
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Python bytecode and caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyc.*
+*$py.class
+
+# Build artifacts
+build/
+dist/
+**/build/
+**/dist/
+*.egg-info/
+
+# Tooling/test caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+coverage/
+.coverage*
+
+# IDE/editor noise
+.vscode/*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
