@@ -14,16 +14,20 @@ class SessionManager:
         title: Optional[str] = "",
         setting: Optional[str] = "",
         document_ids: Optional[List[str]] = None,
+        campaign_genres: Optional[List[str]] = None,
     ) -> str:
         session_id = str(uuid4())
         if document_ids is None:
             document_ids = []
+        if campaign_genres is None:
+            campaign_genres = []
 
         loop = GMLoop(mode)
         loop.orchestrator.state["campaign"] = {
             "title": title or "",
             "setting": setting or "",
             "document_ids": document_ids,
+            "campaign_genres": campaign_genres,
         }
 
         self.sessions[session_id] = {
@@ -31,6 +35,7 @@ class SessionManager:
             "title": title or "",
             "setting": setting or "",
             "document_ids": document_ids,
+            "campaign_genres": campaign_genres,
             "characters": [],
             "gm_loop": loop,
         }

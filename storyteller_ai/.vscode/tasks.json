@@ -56,15 +56,11 @@
     },
     {
       "label": "Test + Lint",
-      "type": "shell",
-      "command": "pwsh",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/run_test_lint.ps1"
+      "dependsOn": [
+        "Run Tests",
+        "Lint (ruff)"
       ],
+      "dependsOrder": "sequence",
       "group": "test",
       "presentation": {
         "reveal": "always",

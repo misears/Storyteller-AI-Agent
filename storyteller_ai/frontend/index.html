@@ -3,263 +3,136 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Storyteller AI</title>
+  <title>Storyteller AI Home</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #0f172a; color: #e2e8f0; }
-    .page { max-width: 960px; margin: 0 auto; padding: 24px; }
-    h1 { margin-bottom: 12px; color: #f8fafc; }
-    .card { background: #111827; border: 1px solid #334155; border-radius: 16px; padding: 20px; margin-bottom: 20px; }
-    label { display: block; margin-bottom: 6px; font-weight: 600; }
-    input[type="text"], textarea, select { width: 100%; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; padding: 12px; font-size: 14px; }
-    button { background: #2563eb; border: none; border-radius: 9999px; color: white; padding: 12px 20px; cursor: pointer; font-size: 14px; transition: background 0.2s ease; }
-    button:hover { background: #1d4ed8; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .row { display: grid; gap: 20px; }
-    .grid-2 { grid-template-columns: 1fr 1fr; }
-    .result { white-space: pre-wrap; background: #0b1120; padding: 16px; border-radius: 14px; border: 1px solid #334155; min-height: 140px; }
-    .doc-list { list-style: none; padding-left: 0; }
-    .doc-list li { margin-bottom: 8px; }
-    .hint { color: #94a3b8; font-size: 13px; margin-top: 8px; }
-    .steps { padding-left: 20px; margin: 0; color: #cbd5e1; }
-    .steps li { margin-bottom: 10px; }
-    .info { color: #cbd5e1; margin-top: 8px; font-size: 14px; }
-    .important { color: #7dd3fc; }
+    :root {
+      --bg: #0f172a;
+      --text: #e2e8f0;
+      --card: #111827;
+      --card-border: #334155;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --radius: 16px;
+      --font-scale: 1;
+      --space: 20px;
+    }
+
+    body {
+      font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-size: calc(14px * var(--font-scale));
+    }
+
+    .page { max-width: 980px; margin: 0 auto; padding: 24px; }
+    h1 { margin-bottom: 8px; color: #f8fafc; }
+    .subtitle { margin: 0 0 22px; color: #cbd5e1; }
+    .choice-grid {
+      display: grid;
+      gap: var(--space);
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+    }
+    .choice {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: var(--space);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 220px;
+    }
+    .choice h2 {
+      margin: 0;
+      color: #f8fafc;
+      font-size: 20px;
+    }
+    .choice p {
+      margin: 0;
+      color: #cbd5e1;
+      line-height: 1.4;
+      flex: 1;
+    }
+    .choice button {
+      background: var(--accent);
+      border: none;
+      border-radius: 999px;
+      color: #ffffff;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s ease;
+      width: 100%;
+    }
+    .choice button:hover {
+      background: var(--accent-hover);
+    }
+
+    @media (max-width: 920px) {
+      .choice-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
 <div class="page">
   <h1>Storyteller AI</h1>
-  <div class="link-row" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
-    <button onclick="window.location.href='setup.html'">Setup Page</button>
-    <button onclick="window.location.href='character_tracker.html'">Character Tracker</button>
-  </div>
-  <div class="card">
-    <h2>How to use this page</h2>
-    <ol class="steps">
-      <li>Click <strong>Create Game</strong> to start a new story session.</li>
-      <li>Copy the session ID into the <strong>Session ID</strong> field if it is not already filled.</li>
-      <li>Type your next story action or scene and click <strong>Continue Story</strong>.</li>
-      <li>Upload PDFs to teach the AI about characters, locations, or world lore.</li>
-      <li>Ask questions using the retrieve panel to reference uploaded documents.</li>
-    </ol>
-    <div class="info">The page is arranged in order: game setup, story continuation, document upload, then document retrieval.</div>
-    <div class="hint">Tip: Use a setup prompt like <span class="important">"The heroes arrive at a ruined castle and hear footsteps in the dark hallway."</span></div>
-  </div>
+  <p class="subtitle">Choose what you want to do next.</p>
+  <div class="choice-grid">
+    <section class="choice">
+      <h2>Setup</h2>
+      <p>
+        Create a game, pick game mode and setting, upload PDF documents into the app database,
+        choose your LLM provider/model, and customize page layout style.
+      </p>
+      <button onclick="window.location.href='setup.html'">Open Setup</button>
+    </section>
 
-  <div class="card">
-    <h2>Step 1: Create a game</h2>
-    <div class="row grid-2">
-      <div>
-        <label for="session-mode">Mode</label>
-        <select id="session-mode">
-          <option value="group">group</option>
-          <option value="solo">solo</option>
-          <option value="assistant">assistant</option>
-        </select>
-      </div>
-      <div>
-        <label for="game-title">Game title</label>
-        <input id="game-title" type="text" placeholder="Story title or chronicle name" />
-      </div>
-    </div>
-    <div class="row grid-2">
-      <div>
-        <label for="game-setting">Setting</label>
-        <select id="game-setting">
-          <option value="Old World of Darkness">Old World of Darkness</option>
-          <option value="New World of Darkness">New World of Darkness</option>
-          <option value="Changeling">Changeling</option>
-          <option value="Generic Fantasy">Generic Fantasy</option>
-          <option value="Custom">Custom</option>
-        </select>
-      </div>
-      <div style="display:flex; align-items:flex-end;">
-        <button id="create-session">Create Game</button>
-      </div>
-    </div>
-    <label for="book-select">Choose books / documents</label>
-    <select id="book-select" multiple size="4"></select>
-    <p class="hint">Select the loaded reference documents that should be active for this session.</p>
-    <div class="result" id="session-result"></div>
-  </div>
+    <section class="choice">
+      <h2>Story Console</h2>
+      <p>
+        Continue your current session, send story turns, create characters, and query uploaded references.
+      </p>
+      <button onclick="window.location.href='play.html'">Open Story Console</button>
+    </section>
 
-  <div class="card">
-    <h2>Step 2: Continue the story</h2>
-    <label for="session-id">Session ID</label>
-    <input id="session-id" type="text" placeholder="session id" />
-    <label for="user-message">What happens next?</label>
-    <textarea id="user-message" rows="4" placeholder="Describe the next action or scene."></textarea>
-    <button id="send-message">Continue Story</button>
-    <div class="result" id="message-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Upload story documents</h2>
-    <input id="pdf-file" type="file" accept="application/pdf" multiple />
-    <button id="upload-pdf">Upload PDFs</button>
-    <div class="result" id="upload-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Character creation</h2>
-    <label for="character-name">Name</label>
-    <input id="character-name" type="text" placeholder="Character name" />
-    <label for="character-clan">Clan / Type</label>
-    <input id="character-clan" type="text" placeholder="Vampire clan, changeling court, etc." />
-    <label for="character-notes">Notes</label>
-    <textarea id="character-notes" rows="3" placeholder="Background, traits, or tracking notes"></textarea>
-    <button id="create-character">Create Character</button>
-    <div class="result" id="character-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Retrieve reference info</h2>
-    <label for="query-text">Query</label>
-    <textarea id="query-text" rows="3" placeholder="Search the loaded documents"></textarea>
-    <button id="retrieve-docs">Retrieve</button>
-    <div class="result" id="retrieve-result"></div>
-  </div>
-
-  <div class="card">
-    <h2>Loaded documents</h2>
-    <ul class="doc-list" id="doc-list"></ul>
+    <section class="choice">
+      <h2>Character Tracker</h2>
+      <p>
+        Open the dedicated tracker page for character details and campaign notes.
+      </p>
+      <button onclick="window.location.href='character_tracker.html'">Open Character Tracker</button>
+    </section>
   </div>
 </div>
 <script>
-  const apiBase = (() => {
-    if (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null') {
-      return 'http://127.0.0.1:8000';
-    }
-    return window.location.origin;
-  })();
-
-  async function createSession() {
-    const mode = document.getElementById('session-mode').value;
-    const title = document.getElementById('game-title').value;
-    const setting = document.getElementById('game-setting').value;
-    const selected = Array.from(document.getElementById('book-select').selectedOptions).map(option => option.value);
-
-    const response = await fetch(`${apiBase}/sessions/create`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({mode, title, setting, document_ids: selected}),
-    });
-    const data = await response.json();
-    document.getElementById('session-result').textContent = JSON.stringify(data, null, 2);
-    document.getElementById('session-id').value = data.session_id;
-    await refreshDocuments();
-  }
-
-  async function sendMessage() {
-    const sessionId = document.getElementById('session-id').value;
-    const message = document.getElementById('user-message').value;
-    const response = await fetch(`${apiBase}/gm/step`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({session_id: sessionId, message}),
-    });
-    const data = await response.json();
-    document.getElementById('message-result').textContent = JSON.stringify(data, null, 2);
-  }
-
-  async function uploadPdf() {
-    const fileInput = document.getElementById('pdf-file');
-    const output = document.getElementById('upload-result');
-    output.textContent = '';
-    if (!fileInput.files.length) {
-      output.textContent = 'No PDF selected.';
+  function applyLayoutPreferences() {
+    const raw = localStorage.getItem('storytellerLayoutPrefs');
+    if (!raw) {
       return;
-    }
-
-    const fileCount = fileInput.files.length;
-    const form = new FormData();
-    for (const file of fileInput.files) {
-      form.append('files', file);
     }
 
     try {
-      const response = await fetch(`${apiBase}/documents/upload`, {
-        method: 'POST',
-        body: form,
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        const text = await response.text();
-        throw new Error(text || jsonError.message);
-      }
-
-      if (!response.ok) {
-        throw new Error(data.detail || JSON.stringify(data));
-      }
-
-      const successMsg = `✓ Successfully uploaded ${fileCount} PDF${fileCount > 1 ? 's' : ''}. ${data.documents.length} document${data.documents.length > 1 ? 's' : ''} added.`;
-      output.textContent = successMsg + '\n\n' + JSON.stringify(data, null, 2);
-      fileInput.value = '';
-      await refreshDocuments();
+      const prefs = JSON.parse(raw);
+      const root = document.documentElement;
+      if (prefs.bg) root.style.setProperty('--bg', prefs.bg);
+      if (prefs.text) root.style.setProperty('--text', prefs.text);
+      if (prefs.card) root.style.setProperty('--card', prefs.card);
+      if (prefs.cardBorder) root.style.setProperty('--card-border', prefs.cardBorder);
+      if (prefs.accent) root.style.setProperty('--accent', prefs.accent);
+      if (prefs.accentHover) root.style.setProperty('--accent-hover', prefs.accentHover);
+      if (prefs.radius) root.style.setProperty('--radius', prefs.radius);
+      if (prefs.space) root.style.setProperty('--space', prefs.space);
+      if (prefs.fontScale) root.style.setProperty('--font-scale', String(prefs.fontScale));
     } catch (error) {
-      output.textContent = `✗ Upload failed: ${error.message}`;
+      console.error('Failed to apply saved layout preferences', error);
     }
   }
 
-  async function createCharacter() {
-    const sessionId = document.getElementById('session-id').value;
-    const name = document.getElementById('character-name').value;
-    const clan = document.getElementById('character-clan').value;
-    const notes = document.getElementById('character-notes').value;
-
-    if (!sessionId) {
-      document.getElementById('character-result').textContent = 'Enter a session id before creating a character.';
-      return;
-    }
-
-    const response = await fetch(`${apiBase}/sessions/${sessionId}/characters`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, clan, notes}),
-    });
-    const data = await response.json();
-    document.getElementById('character-result').textContent = JSON.stringify(data, null, 2);
-  }
-
-  async function retrieveDocs() {
-    const query = document.getElementById('query-text').value;
-    const response = await fetch(`${apiBase}/documents/retrieve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({query}),
-    });
-    const data = await response.json();
-    document.getElementById('retrieve-result').textContent = data.results || 'No relevant matches.';
-  }
-
-  async function refreshDocuments() {
-    const response = await fetch(`${apiBase}/documents/list`);
-    const data = await response.json();
-    const list = document.getElementById('doc-list');
-    const select = document.getElementById('book-select');
-    list.innerHTML = '';
-    select.innerHTML = '';
-    for (const doc of data.documents) {
-      const item = document.createElement('li');
-      item.textContent = `${doc.title} — ${doc.size} chars`;
-      list.appendChild(item);
-
-      const option = document.createElement('option');
-      option.value = doc.document_id;
-      option.textContent = doc.title;
-      select.appendChild(option);
-    }
-  }
-
-  document.getElementById('create-session').addEventListener('click', createSession);
-  document.getElementById('send-message').addEventListener('click', sendMessage);
-  document.getElementById('upload-pdf').addEventListener('click', uploadPdf);
-  document.getElementById('create-character').addEventListener('click', createCharacter);
-  document.getElementById('retrieve-docs').addEventListener('click', retrieveDocs);
-  refreshDocuments();
+  applyLayoutPreferences();
 </script>
 </body>
 </html>

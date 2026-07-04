@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..services.session_manager import session_manager
 
@@ -12,7 +12,8 @@ class CreateSessionRequest(BaseModel):
     mode: str = "group"
     title: Optional[str] = ""
     setting: Optional[str] = ""
-    document_ids: List[str] = []
+    document_ids: List[str] = Field(default_factory=list)
+    campaign_genres: List[str] = Field(default_factory=list)
 
 
 class CharacterCreateRequest(BaseModel):
@@ -36,6 +37,7 @@ def list_all_sessions():
             "title": session.get("title", ""),
             "setting": session.get("setting", ""),
             "document_ids": session.get("document_ids", []),
+            "campaign_genres": session.get("campaign_genres", []),
             "character_count": len(session.get("characters", [])),
         }
     return {"sessions": sessions_dict}
@@ -48,6 +50,7 @@ def create_session(payload: CreateSessionRequest):
         title=payload.title,
         setting=payload.setting,
         document_ids=payload.document_ids,
+        campaign_genres=payload.campaign_genres,
     )
     return {
         "session_id": session_id,
@@ -55,6 +58,7 @@ def create_session(payload: CreateSessionRequest):
         "title": payload.title,
         "setting": payload.setting,
         "document_ids": payload.document_ids,
+        "campaign_genres": payload.campaign_genres,
     }
 
 
