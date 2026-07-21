@@ -28,6 +28,8 @@
         "flake8",
         "backend",
         "tests"
+        "backend",
+        "tests"
       ],
       "group": "build",
       "presentation": {
@@ -44,6 +46,8 @@
         "-m",
         "ruff",
         "check",
+        "backend",
+        "tests"
         "backend",
         "tests"
       ],
@@ -79,6 +83,7 @@
       "args": [
         "-m",
         "uvicorn",
+        "backend.main:app",
         "backend.main:app",
         "--reload",
         "--host",
