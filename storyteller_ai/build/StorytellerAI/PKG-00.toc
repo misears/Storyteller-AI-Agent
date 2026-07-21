@@ -1,0 +1,346 @@
+('C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+ 'Agent\\storyteller_ai\\build\\StorytellerAI\\StorytellerAI.pkg',
+ {'BINARY': True,
+  'DATA': True,
+  'EXECUTABLE': True,
+  'EXTENSION': True,
+  'PYMODULE': True,
+  'PYSOURCE': True,
+  'PYZ': False,
+  'SPLASH': True,
+  'SYMLINK': False},
+ [('pyi-contents-directory _internal', '', 'OPTION'),
+  ('PYZ-00.pyz',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\PYZ-00.pyz',
+   'PYZ'),
+  ('struct',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\localpycs\\struct.pyc',
+   'PYMODULE'),
+  ('pyimod01_archive',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\localpycs\\pyimod01_archive.pyc',
+   'PYMODULE'),
+  ('pyimod02_importers',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\localpycs\\pyimod02_importers.pyc',
+   'PYMODULE'),
+  ('pyimod03_ctypes',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\localpycs\\pyimod03_ctypes.pyc',
+   'PYMODULE'),
+  ('pyimod04_pywin32',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\localpycs\\pyimod04_pywin32.pyc',
+   'PYMODULE'),
+  ('pyiboot01_bootstrap',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgutil',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgutil.py',
+   'PYSOURCE'),
+  ('pyi_rth_multiprocessing',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_multiprocessing.py',
+   'PYSOURCE'),
+  ('pyi_rth_inspect',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgres',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgres.py',
+   'PYSOURCE'),
+  ('desktop_entry',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\desktop_entry.py',
+   'PYSOURCE'),
+  ('python310.dll', 'C:\\Program Files\\Python310\\python310.dll', 'BINARY'),
+  ('_socket.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_socket.pyd',
+   'EXTENSION'),
+  ('select.pyd', 'C:\\Program Files\\Python310\\DLLs\\select.pyd', 'EXTENSION'),
+  ('_overlapped.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_overlapped.pyd',
+   'EXTENSION'),
+  ('_lzma.pyd', 'C:\\Program Files\\Python310\\DLLs\\_lzma.pyd', 'EXTENSION'),
+  ('_bz2.pyd', 'C:\\Program Files\\Python310\\DLLs\\_bz2.pyd', 'EXTENSION'),
+  ('_ssl.pyd', 'C:\\Program Files\\Python310\\DLLs\\_ssl.pyd', 'EXTENSION'),
+  ('_queue.pyd', 'C:\\Program Files\\Python310\\DLLs\\_queue.pyd', 'EXTENSION'),
+  ('_decimal.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_decimal.pyd',
+   'EXTENSION'),
+  ('_hashlib.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_hashlib.pyd',
+   'EXTENSION'),
+  ('unicodedata.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\unicodedata.pyd',
+   'EXTENSION'),
+  ('_ctypes.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_ctypes.pyd',
+   'EXTENSION'),
+  ('_multiprocessing.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_multiprocessing.pyd',
+   'EXTENSION'),
+  ('pyexpat.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\pyexpat.pyd',
+   'EXTENSION'),
+  ('_asyncio.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_asyncio.pyd',
+   'EXTENSION'),
+  ('_uuid.pyd', 'C:\\Program Files\\Python310\\DLLs\\_uuid.pyd', 'EXTENSION'),
+  ('pydantic_core\\_pydantic_core.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic_core\\_pydantic_core.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('jiter\\jiter.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\jiter\\jiter.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('websockets\\speedups.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets\\speedups.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('pymupdf\\_mupdf.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pymupdf\\_mupdf.pyd',
+   'EXTENSION'),
+  ('pymupdf\\_extra.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pymupdf\\_extra.pyd',
+   'EXTENSION'),
+  ('_zoneinfo.pyd',
+   'C:\\Program Files\\Python310\\DLLs\\_zoneinfo.pyd',
+   'EXTENSION'),
+  ('watchfiles\\_rust_notify.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\watchfiles\\_rust_notify.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('httptools\\parser\\url_parser.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httptools\\parser\\url_parser.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('httptools\\parser\\parser.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httptools\\parser\\parser.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('yaml\\_yaml.cp310-win_amd64.pyd',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\yaml\\_yaml.cp310-win_amd64.pyd',
+   'EXTENSION'),
+  ('VCRUNTIME140.dll',
+   'C:\\Program Files\\Python310\\VCRUNTIME140.dll',
+   'BINARY'),
+  ('libcrypto-1_1.dll',
+   'C:\\Program Files\\Python310\\DLLs\\libcrypto-1_1.dll',
+   'BINARY'),
+  ('libssl-1_1.dll',
+   'C:\\Program Files\\Python310\\DLLs\\libssl-1_1.dll',
+   'BINARY'),
+  ('libffi-7.dll',
+   'C:\\Program Files\\Python310\\DLLs\\libffi-7.dll',
+   'BINARY'),
+  ('VCRUNTIME140_1.dll',
+   'C:\\Program Files\\Python310\\VCRUNTIME140_1.dll',
+   'BINARY'),
+  ('python3.dll', 'C:\\Program Files\\Python310\\python3.dll', 'BINARY'),
+  ('pymupdf\\mupdfcpp64.dll',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pymupdf\\mupdfcpp64.dll',
+   'BINARY'),
+  ('MSVCP140.dll', 'C:\\Windows\\system32\\MSVCP140.dll', 'BINARY'),
+  ('frontend\\character_tracker.html',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\frontend\\character_tracker.html',
+   'DATA'),
+  ('frontend\\index.html',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\frontend\\index.html',
+   'DATA'),
+  ('frontend\\play.html',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\frontend\\play.html',
+   'DATA'),
+  ('frontend\\setup.html',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\frontend\\setup.html',
+   'DATA'),
+  ('certifi\\cacert.pem',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\certifi\\cacert.pem',
+   'DATA'),
+  ('certifi\\py.typed',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\certifi\\py.typed',
+   'DATA'),
+  ('websockets-16.0.dist-info\\INSTALLER',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\INSTALLER',
+   'DATA'),
+  ('httpcore2-2.4.0.dist-info\\INSTALLER',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpcore2-2.4.0.dist-info\\INSTALLER',
+   'DATA'),
+  ('attrs-26.1.0.dist-info\\RECORD',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\attrs-26.1.0.dist-info\\RECORD',
+   'DATA'),
+  ('httpcore2-2.4.0.dist-info\\RECORD',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpcore2-2.4.0.dist-info\\RECORD',
+   'DATA'),
+  ('attrs-26.1.0.dist-info\\licenses\\LICENSE',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\attrs-26.1.0.dist-info\\licenses\\LICENSE',
+   'DATA'),
+  ('pydantic-2.13.4.dist-info\\RECORD',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic-2.13.4.dist-info\\RECORD',
+   'DATA'),
+  ('click-8.4.1.dist-info\\REQUESTED',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\click-8.4.1.dist-info\\REQUESTED',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\METADATA',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\METADATA',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\REQUESTED',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\REQUESTED',
+   'DATA'),
+  ('click-8.4.1.dist-info\\INSTALLER',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\click-8.4.1.dist-info\\INSTALLER',
+   'DATA'),
+  ('httpcore2-2.4.0.dist-info\\WHEEL',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpcore2-2.4.0.dist-info\\WHEEL',
+   'DATA'),
+  ('attrs-26.1.0.dist-info\\REQUESTED',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\attrs-26.1.0.dist-info\\REQUESTED',
+   'DATA'),
+  ('httpcore2-2.4.0.dist-info\\METADATA',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpcore2-2.4.0.dist-info\\METADATA',
+   'DATA'),
+  ('httpcore2-2.4.0.dist-info\\REQUESTED',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpcore2-2.4.0.dist-info\\REQUESTED',
+   'DATA'),
+  ('websockets-16.0.dist-info\\WHEEL',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\WHEEL',
+   'DATA'),
+  ('pydantic-2.13.4.dist-info\\INSTALLER',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic-2.13.4.dist-info\\INSTALLER',
+   'DATA'),
+  ('websockets-16.0.dist-info\\RECORD',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\RECORD',
+   'DATA'),
+  ('click-8.4.1.dist-info\\METADATA',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\click-8.4.1.dist-info\\METADATA',
+   'DATA'),
+  ('pydantic-2.13.4.dist-info\\REQUESTED',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic-2.13.4.dist-info\\REQUESTED',
+   'DATA'),
+  ('pydantic-2.13.4.dist-info\\licenses\\LICENSE',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic-2.13.4.dist-info\\licenses\\LICENSE',
+   'DATA'),
+  ('pydantic-2.13.4.dist-info\\METADATA',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic-2.13.4.dist-info\\METADATA',
+   'DATA'),
+  ('websockets-16.0.dist-info\\top_level.txt',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\top_level.txt',
+   'DATA'),
+  ('click-8.4.1.dist-info\\WHEEL',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\click-8.4.1.dist-info\\WHEEL',
+   'DATA'),
+  ('attrs-26.1.0.dist-info\\METADATA',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\attrs-26.1.0.dist-info\\METADATA',
+   'DATA'),
+  ('click-8.4.1.dist-info\\licenses\\LICENSE.txt',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\click-8.4.1.dist-info\\licenses\\LICENSE.txt',
+   'DATA'),
+  ('pydantic-2.13.4.dist-info\\WHEEL',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\pydantic-2.13.4.dist-info\\WHEEL',
+   'DATA'),
+  ('attrs-26.1.0.dist-info\\WHEEL',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\attrs-26.1.0.dist-info\\WHEEL',
+   'DATA'),
+  ('websockets-16.0.dist-info\\REQUESTED',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\REQUESTED',
+   'DATA'),
+  ('websockets-16.0.dist-info\\METADATA',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\METADATA',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\INSTALLER',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\INSTALLER',
+   'DATA'),
+  ('websockets-16.0.dist-info\\entry_points.txt',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\entry_points.txt',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\WHEEL',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\WHEEL',
+   'DATA'),
+  ('attrs-26.1.0.dist-info\\INSTALLER',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\attrs-26.1.0.dist-info\\INSTALLER',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\entry_points.txt',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\entry_points.txt',
+   'DATA'),
+  ('websockets-16.0.dist-info\\licenses\\LICENSE',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\websockets-16.0.dist-info\\licenses\\LICENSE',
+   'DATA'),
+  ('click-8.4.1.dist-info\\RECORD',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\click-8.4.1.dist-info\\RECORD',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\licenses\\LICENSE.md',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\licenses\\LICENSE.md',
+   'DATA'),
+  ('httpcore2-2.4.0.dist-info\\licenses\\LICENSE.md',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpcore2-2.4.0.dist-info\\licenses\\LICENSE.md',
+   'DATA'),
+  ('httpx2-2.4.0.dist-info\\RECORD',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\venv\\lib\\site-packages\\httpx2-2.4.0.dist-info\\RECORD',
+   'DATA'),
+  ('base_library.zip',
+   'C:\\Users\\misea\\OneDrive\\Documents\\AI Project Folders\\Storyteller AI '
+   'Agent\\storyteller_ai\\build\\StorytellerAI\\base_library.zip',
+   'DATA')],
+ 'python310.dll',
+ False,
+ False,
+ False,
+ [],
+ None,
+ None,
+ None)

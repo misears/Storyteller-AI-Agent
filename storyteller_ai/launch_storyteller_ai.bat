@@ -13,6 +13,18 @@ if not exist "venv\Scripts\activate" (
 )
 
 call "venv\Scripts\activate"
+
+REM Configure OCR executable if available
+if exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
+    set "TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe"
+    echo OCR enabled with Tesseract at "%TESSERACT_CMD%"
+) else if exist "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" (
+    set "TESSERACT_CMD=C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+    echo OCR enabled with Tesseract at "%TESSERACT_CMD%"
+) else (
+    echo Tesseract not found in common install paths. OCR fallback may be unavailable.
+)
+
 echo Starting Storyteller AI backend...
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 

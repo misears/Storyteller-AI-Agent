@@ -16,6 +16,17 @@ call "venv\Scripts\activate"
 echo.
 echo Starting Storyteller AI with Ollama and Llama2...
 
+REM Configure OCR executable if available
+if exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
+    set "TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe"
+    echo OCR enabled with Tesseract at "%TESSERACT_CMD%"
+) else if exist "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" (
+    set "TESSERACT_CMD=C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+    echo OCR enabled with Tesseract at "%TESSERACT_CMD%"
+) else (
+    echo Tesseract not found in common install paths. OCR fallback may be unavailable.
+)
+
 REM Verify Ollama is installed
 ollama --version >nul 2>&1
 if errorlevel 1 (
@@ -55,7 +66,7 @@ if errorlevel 1 (
 
 echo.
 echo Starting backend server...
-start "Backend" cmd /k "set LLM_PROVIDER=ollama && set OLLAMA_URL=http://127.0.0.1:11434 && set OLLAMA_MODEL=llama2:7b && "%~dp0venv\Scripts\python.exe" -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000"
+start "Backend" cmd /k "set LLM_PROVIDER=ollama && set OLLAMA_URL=http://127.0.0.1:11434 && set OLLAMA_MODEL=llama2:7b && set TESSERACT_CMD=%TESSERACT_CMD% && "%~dp0venv\Scripts\python.exe" -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000"
 
 echo Waiting briefly before opening the browser...
 timeout /t 3 /nobreak >nul
