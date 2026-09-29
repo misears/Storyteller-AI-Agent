@@ -291,8 +291,8 @@ sequenceDiagram
   `interrupted` on resume (see §6.5).
 - Every `DiceRoll` is linked to the turn **and** a chat message. It links to the system message that
   announces the roll, and the GM narration message lists the `dice_roll_ids` it was based on.
-- Narration is streamed to clients as `message.delta` events but only becomes part of the log as
-  `message.final` after commit.
+- Narration is streamed to clients as `message.delta` events but only becomes part of the log after commit, as a persisted `message.posted` event
+  (which clients receive as the SSE type `message.final`).
 - The tool loop is bounded: at most 6 rounds and 12 tool calls per turn (configurable). When the
   limit is hit, the model gets one final "narrate now, no tools" instruction.
 
@@ -782,7 +782,7 @@ projectors are pure functions of the events.
 `message.posted`, `message.redacted`, `dice.rolled`, `character.created`, `character.updated`,
 `character.status_changed`, `sheet.updated`, `turn_order.changed`, `action.declared`,
 `action.resolved`, `tracker.changed`, `state.patched` (restricted, §9.4), `summary.created`,
-`fact.recorded`, `save.created`, `save.loaded`, `branch.forked`, `campaign.migrated`.
+`fact.recorded`, `save.created`, `save.loaded`, `branch.forked`, `branch.activated`, `campaign.migrated`.
 
 Each type has a versioned Pydantic payload model (`models/events.py`) and a reducer.
 
