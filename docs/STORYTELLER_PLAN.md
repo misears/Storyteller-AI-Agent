@@ -11,7 +11,8 @@
 > [0002 server-authoritative dice](./adr/0002-server-authoritative-dice.md) ·
 > [0003 ruleset & setting packs](./adr/0003-ruleset-and-setting-pack-format.md) ·
 > [0004 LLM tool loop & context](./adr/0004-llm-tool-loop-and-context-strategy.md) ·
-> [0005 multiplayer transport](./adr/0005-multiplayer-transport-sse.md)
+> [0005 multiplayer transport](./adr/0005-multiplayer-transport-sse.md) ·
+> [0006 frontend web framework](./adr/0006-frontend-web-framework.md)
 
 ## Table of contents
 
@@ -20,6 +21,7 @@
    - [1.2 Other owner decisions](#12-other-owner-decisions)
 2. [Current state & reconciliation (keep / change / add)](#2-current-state--reconciliation-keep--change--add)
 3. [Target architecture](#3-target-architecture)
+   - [3.1 Frontend (owner decision Q11: web framework)](#31-frontend-owner-decision-q11-web-framework)
 4. [Data flow for one turn](#4-data-flow-for-one-turn)
 5. [Data model (Pydantic)](#5-data-model-pydantic)
 6. [Storage, save & resume](#6-storage-save--resume)
@@ -108,6 +110,8 @@ What this means for Phase 1:
 | Q21 | The owner **has a *Demon: The Fallen* PDF**, not yet uploaded; it will be added later | T3.13 builds the structure now and is enriched from the PDF via extend mode when it is uploaded |
 | Q22 | Sessions last **4–6 hours**, and a campaign spans **many sessions** | §10.2 long-session sizing; T7.2/R3 test 400 turns across several sessions |
 | Q23 | Free cloud tiers that may **train on prompts are acceptable** | §9.6: cloud stays opt-in (a settings choice), but no extra warning is required |
+| Q11 | ~~Frontend?~~ **Answered:** web framework → React + TypeScript + Vite | §3.1, ADR-0006, M10 |
+| Q7–Q10, Q12 | **Defaults accepted** | Q7 absent PCs go to the background; Q8 assistant mode kept working, not expanded before M9; Q9 secret GM rolls allowed, dice verifiable after the campaign, seed kept in the DB; Q10 lines, veils and an X-card button; Q12 root paths as today, compat routes until M10 then deprecated |
 
 ---
 
@@ -136,7 +140,7 @@ the setup document and the current code.
 | Path (under `storyteller_ai/backend/`) | Decision | Notes |
 |---|---|---|
 | `main.py` | **Keep / change** | Register new routers. Initialise the DB (run Alembic migrations) in `lifespan`. Keep static frontend mount **last** |
-| `routers/gm.py` (`POST /gm/step`) | **Keep as compat shim** | Maps `session_id` → campaign and forwards to `TurnService`. Deprecated once `play.html` moves to `/campaigns/{id}/turns` |
+| `routers/gm.py` (`POST /gm/step`) | **Keep as compat shim** | Maps `session_id` → campaign and forwards to `TurnService`. Removed in T10.7 once the React play view uses `/campaigns/{id}/turns` |
 | `routers/sessions.py` | **Change** | Becomes a thin compat layer over `CampaignService` (a legacy "session" = a campaign plus its active play session) |
 | `routers/character_sheets.py` | **Change** | Keep PDF/DOCX export. Sheets become ruleset-schema-validated and versioned. Legacy templates are served as the `freeform` ruleset |
 | `routers/documents.py`, `services/document_store.py`, `services/pdf_ingest.py` | **Keep** | Reused as the *lore / rules retrieval* backend for the `lookup_rules` tool and the setting-pack lore |
@@ -195,7 +199,7 @@ storyteller_ai/backend/
 ```mermaid
 flowchart LR
     subgraph Clients
-        UI["Web frontend<br/>setup.html / play.html / character_tracker.html"]
+        UI["Web frontend (React SPA)<br/>lobby / session zero / play / sheets / saves / settings"]
         P2["Other players' browsers"]
     end
 
@@ -284,6 +288,33 @@ flowchart LR
 | Reducers | Pure `(GameState, Event) -> GameState` functions. They are used live **and** during replay, which guarantees resume fidelity |
 | `SaveService` | Snapshots, named saves, load (fork), export/import, crash recovery |
 | Broadcaster | Fans out committed events to connected clients (SSE), filtered by visibility |
+
+### 3.1 Frontend (owner decision Q11: web framework)
+
+See [ADR-0006](./adr/0006-frontend-web-framework.md).
+
+- **Stack:** React + TypeScript, built with Vite, in `storyteller_ai/web/`. Main libraries:
+  - TanStack Query for API calls and caching
+  - React Router for pages
+  - `@rjsf/core` to generate character-sheet forms from each ruleset's JSON Schema (§5.5)
+  - the browser's built-in `EventSource` for the SSE stream (§13.7)
+
+  Each dependency is checked against the advisory DB when it is added.
+- **Why React:** the largest ecosystem for JSON-Schema forms, which matters because every imported
+  ruleset brings its own sheet schema. It is also the most common choice for later contributors.
+- **Build and serve:** `npm run build` writes static files to `storyteller_ai/frontend/dist/`.
+  FastAPI serves them from the existing static mount, still registered last. Node.js is needed
+  **only to build**, not to run: the desktop build (PyInstaller, T11.3) bundles the built files,
+  so players install nothing new. In development, the Vite dev server proxies `/api` calls to
+  FastAPI on `127.0.0.1`.
+- **API types:** TypeScript types are generated from FastAPI's OpenAPI schema
+  (`openapi-typescript`), so the frontend and the Pydantic models (§5) cannot drift apart unnoticed.
+- **Pages:** lobby (pick player from a list + add), session-zero wizard, play view (chat, dice log,
+  turn order, two-step "speaking as" picker, GM-view window), sheet view and version history, saves
+  and timelines, PDF library and import wizard, and settings (model switcher §9.6).
+- **Migration:** the current `setup.html`, `play.html` and `character_tracker.html` keep working
+  until their React replacements pass the same checks. They are then removed together with the
+  compat routes (Q12).
 
 ---
 
@@ -1840,7 +1871,7 @@ name the speaking player). From Phase 2 (M12), the player/host token goes as a b
 | Existing | Plan |
 |---|---|
 | `POST /gm/step {session_id, mode, user_message}` | Kept. Resolves to a campaign via a `legacy_session_id` mapping, calls `TurnService` with `wait=true`, and returns `{narration, state}` in the old shape |
-| `/sessions/*` | Kept as a facade over campaigns until `setup.html`/`play.html` are migrated (M10), then deprecated with a `Deprecation` header |
+| `/sessions/*` | Kept as a facade over campaigns until `setup.html`/`play.html` are replaced by the React app (M10), then removed in T10.7 |
 | `/character-sheets/*` | Kept for the character tracker. It reads/writes through the new sheet service after the M4 migration |
 | `/documents/*` | Unchanged (readable by every member, Q19) |
 | `/settings/*` | Extended with per-role LLM profiles, model list/pull and "Test model" (§9.6, T5.7) |
@@ -1939,6 +1970,7 @@ in the repo. M0 adds `.github/workflows/ci.yml` (Python 3.12, pytest + ruff).
 | Multiplayer | Concurrent `POST /turns` from 5 players → serialised, declarations batched, no lost inputs; join/leave mid-scene; spotlight stats | `asyncio.gather` against the app |
 | Pack validation | Every bundled pack validates, digests ≤ budget, example characters validate | Runs in CI |
 | PDF import | Classification, chunking with page tags, per-section extraction against recorded LLM outputs, question selection (only low-confidence fields asked), validation gate, extend-mode diff, citation integrity. Uses self-written fixture PDFs only; no copyrighted text in the repo | Scripted LLM; fixture PDFs generated in tests |
+| Frontend | Vitest component tests (sheet form from schema, speaking-as picker, SSE reducer); Playwright end-to-end against FastAPI with the scripted LLM (two tabs in sync, save/load round trip) | Runs in CI (headless Chromium) |
 | Live-LLM smoke (optional) | 5 scripted player inputs against a real Ollama/OpenAI model; asserts only structural properties (tool used for rolls, no fabricated rolls) | Marked `@pytest.mark.live`, excluded from CI by default |
 
 ### 15.2 Test helpers to add
@@ -2095,15 +2127,18 @@ recommended order is M12 → M13 (Q15).
 | T9.4 | NPC seeding from bible by tier; hook weaving; opening scene | Campaign reaches `active` with scene + NPCs |
 | T9.5 | Session start/end: recap, world tick (clock advancement) | Recap shown on next session start |
 
-### M10 — Frontend
+### M10 — Frontend (React + TypeScript + Vite, Q11)
 
 | ID | Task | Acceptance criteria |
 |---|---|---|
-| T10.1 | Campaign lobby: create / add local players / list / resume | Manual QA script + API tests |
+| T10.0 | Scaffold `storyteller_ai/web/` with `npm create vite` (React + TS). ESLint + Vitest. Build to `frontend/dist/` served by FastAPI. OpenAPI → TypeScript types. Vite dev proxy | `npm run build` + `npm test` pass. FastAPI serves the built app. Legacy pages still reachable |
+| T10.1 | Campaign lobby: pick player from a list + add, list / create / resume campaigns | Vitest + Playwright script. API tests |
 | T10.2 | Session-zero wizard (system + PDFs → setting → table → bible → chargen) | End-to-end with mock provider |
-| T10.3 | Play view: SSE chat, dice log panel, turn order, whose-turn, **"speaking as" selector**, roll button, GM-view window for secrets | Two browser tabs stay in sync |
-| T10.4 | Sheet view generated from JSON Schema + version history/revert | Works for every bundled ruleset |
-| T10.5 | Saves panel: save/load/branches/export/import | Round trip through the UI |
+| T10.3 | Play view: SSE chat, dice log panel, turn order, whose-turn, **two-step "speaking as" picker** (player → character), roll button, GM-view window for secrets, X-card button | Two browser tabs stay in sync (Playwright) |
+| T10.4 | Sheet view generated from JSON Schema (`@rjsf/core`) + version history/revert | Works for every bundled ruleset and a PDF-imported one |
+| T10.5 | Saves panel: save/load/timelines/export/import | Round trip through the UI |
+| T10.6 | PDF library + import wizard pop-ups (§8.6) and settings / model switcher (§9.6) | Wizard completes the fixture import. A model switch shows up in the next turn |
+| T10.7 | Retire the legacy HTML pages and compat routes (`/gm/step`, `/sessions`) | No test or page uses them |
 
 ### M11 — Hardening & local release (end of Phase 1)
 
@@ -2111,7 +2146,7 @@ recommended order is M12 → M13 (Q15).
 |---|---|---|
 | T11.1 | Request size limits, secret-leak validator, loopback-only bind guard | Tests |
 | T11.2 | Performance: 1000-turn campaign resume < 1 s; turn overhead (excluding LLM) < 100 ms | Benchmarks in CI (non-blocking) |
-| T11.3 | Desktop build (PyInstaller) includes packs + migrations | Smoke test of built app |
+| T11.3 | Desktop build (PyInstaller) includes packs, migrations and the built React app (`frontend/dist`) | Smoke test of built app with no Node.js installed |
 | T11.4 | Docs: pack authoring guide, player guide, operator guide | Reviewed |
 | T11.5 | **Phase 1 sign-off:** play a full scripted session plus one real multi-session campaign on one computer | Owner confirms "works as desired" → Phase 2 unlocked |
 
@@ -2165,6 +2200,7 @@ the compat UI in one browser window.
 | R13 | Phase-1 shortcuts (no auth, single window) leak into the design and make Phase 2/3 costly | Medium / Medium | Players, memberships, authority checks and SSE are built in Phase 1. Only *authentication* is stubbed, behind `get_current_actor()` |
 | R12 | Untrusted pack code | Low / High | Data-only imported packs. Hooks only from trusted dirs |
 | R15 | Cross-genre rules conflicts (different families, line-specific powers) | Medium / Medium | Same-family sharing first (VtM + Demon), outcome-ladder bridge confirmed by the owner, `lookup_rules` for line-specific cases (§8.7) |
+| R17 | A web framework adds a Node.js build toolchain and npm dependencies | Medium / Low | Node only at build time; built files are bundled; lockfile + advisory-DB checks; legacy pages remain until parity |
 | R16 | Free cloud tiers change terms or rate-limit (training on prompts is accepted, Q23) | Medium / Low | Local default. Cloud is opt-in; never an automatic fallback to paid models. Rate-limit errors fall back to the local model |
 
 ---
@@ -2179,12 +2215,12 @@ the compat UI in one browser window.
 | Q4 | ~~Purge PDFs/data?~~ **Answered:** yes, purge | T0.3 |
 | Q5 | ~~Default LLM and hardware?~~ **Answered:** RTX 4070 laptop (8 GB), free and preferably open source, free cloud acceptable, model switch in settings | §9.6, T5.7–T5.8 |
 | Q6 | ~~Load semantics?~~ **Answered:** new timeline | §6.4 |
-| Q7 | Default policy for absent players' characters (background / GM-controlled / ask)? | Background |
-| Q8 | How important is the human-GM **assistant** mode relative to the full AI GM? | Kept working; not expanded until after M9 |
-| Q9 | Secret GM rolls: allowed? Should players be able to verify dice after the campaign (seed reveal)? Where should seeds be stored? | Allowed; verify after campaign end; seed in DB |
-| Q10 | Safety tools beyond lines & veils (X-card, pause button, content warnings per scene)? | Lines, veils, and an X-card button in M10 |
+| Q7 | ~~Absent PCs?~~ **Answered:** default (background) | §11.5 |
+| Q8 | ~~Assistant mode priority?~~ **Answered:** default (kept working; not expanded until after M9) | §11.2 |
+| Q9 | ~~Secret GM rolls / verification?~~ **Answered:** default (allowed; verify after campaign end; seed in DB) | §7 |
+| Q10 | ~~Safety tools?~~ **Answered:** default (lines, veils, X-card button in M10) | T10.3 |
 | Q11 | Frontend: keep vanilla HTML/JS pages or adopt a framework for the play view? | Keep vanilla + SSE through M10 |
-| Q12 | API style: version prefix (`/api/v1`) for new routes? Keep `/gm/step` and `/sessions` long-term? | Root paths like today; keep compat until M10, then deprecate |
+| Q12 | ~~API style?~~ **Answered:** default (root paths; compat routes until M10, then removed in T10.7) | §13.6 |
 | Q13 | ~~BlackDragon files?~~ **Answered:** delete. Done | T0.2 |
 | Q14 | ~~Table size?~~ **Answered:** at most 10 players to begin with | §11.2, `max_players = 10` |
 | Q15 | ~~Network or Discord first?~~ **Answered:** network, then Discord | M12 → M13 |
