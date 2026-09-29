@@ -122,7 +122,7 @@ storyteller_ai/backend/
   **persistence/**    **db.py  tables.py  unit_of_work.py  repositories/  migrations/ (Alembic)**
   **domain/**         **reducers.py  upcasters.py  authority.py**
   **rules/**          **loader.py  registry.py  sheet_validator.py  formulas.py  chargen.py
-                      dice/ (parser.py rng.py evaluator.py mechanics.py)**
+                      dice/ (engine.py parser.py rng.py evaluator.py mechanics.py)**
   **tools/**          **registry.py  specs.py  handlers/*.py**
   **context/**        **builder.py  budget.py  summarizer.py  memory.py  retrieval.py**
   services/           llm_client.py llm_response.py llm_utils.py retry.py runtime_settings.py ...
@@ -265,7 +265,7 @@ sequenceDiagram
             DE->>DB: append dice.rolled + system chat message
         else sheet / scene / npc tools
             TR->>RU: validate against ruleset schema
-            RU->>DB: append sheet.updated / scene.changed / character.created
+            RU->>DB: append sheet.updated / scene.started / character.created
         end
         TR-->>TS: tool result (authoritative JSON)
         TS->>TS: append tool result to messages
@@ -471,6 +471,7 @@ class DiceRoll(BaseModel):
     session_id: Id | None
     scene_id: Id | None
     turn_id: Id | None
+    seq: int                                   # event seq of the dice.rolled event (ordering, paging)
     chat_message_id: Id                        # the system message announcing the roll
     roller: Actor                              # who asked for the roll (player or ai_gm tool call)
     character_id: Id | None                    # whose dice
@@ -769,7 +770,7 @@ projectors are pure functions of the events.
 
 ### 6.3 Event catalogue (initial)
 
-`campaign.created`, `campaign.configured`, `bible.generated`, `player.joined`, `player.left`,
+`campaign.created`, `campaign.configured`, `bible.generated`, `bible.edited`, `player.joined`, `player.left`,
 `player.status_changed`, `session.started`, `session.ended`, `scene.started`, `scene.updated`,
 `scene.ended`, `turn.started`, `turn.completed`, `turn.interrupted`, `turn.failed`,
 `message.posted`, `message.redacted`, `dice.rolled`, `character.created`, `character.updated`,
@@ -877,7 +878,7 @@ See [ADR-0002](./adr/0002-server-authoritative-dice.md).
 
 1. The **only** code path that produces a `DiceRoll` is `rules/dice/engine.roll()`. It is reached from
    the `roll_dice` tool, the player roll endpoint, or other tools that roll internally (e.g.
-   `start_combat` rolling initiative).
+   `set_turn_order(roll_initiative=true)` rolling initiative, chargen stat rolls).
 2. The LLM must call `roll_dice` whenever the ruleset says an outcome is uncertain. The protocol
    forbids stating numeric results that did not come from a tool result (§9.2). A post-validator
    flags narration that mentions roll-like numbers ("rolled a 17", "3 successes") with no matching
@@ -1532,7 +1533,7 @@ Event types:
 | State & saves | `tracker.changed`, `state.updated`, `save.created`, `branch.activated` |
 | Other | `error`, `heartbeat` (every 15 s) |
 
-Secret events are delivered only to authorised subscribers. Whisper events go only to their target players and the GM.
+SSE types are a client-facing view of persisted events. Most map 1:1. `scene.changed` covers `scene.started`/`scene.updated`/`scene.ended`, `state.updated` covers `state.patched`/`turn.*`, and `message.delta`/`message.retracted`/`turn.queued`/`heartbeat` are transient, never persisted. Secret events are delivered only to authorised subscribers. Whisper events go only to their target players and the GM.
 
 Player input stays on plain `POST`, which gives simple idempotency and retries. SSE works through proxies and needs no extra
 dependency (a `StreamingResponse` with `text/event-stream`). WebSockets can be added later with the same `Broadcaster`.
