@@ -98,7 +98,7 @@ the setup document and the current code.
 | `gm_modes/{solo,group,assistant}.py` | **Keep** | Mode instructions become protocol fragments. Group mode gains spotlight guidance |
 | `gm_modes/orchestrator.py` | **Change** | `SYSTEM_PROTOCOL` → `gm_modes/protocol.py` template (§9.2). The shallow-merge `apply_state_update` is removed in favour of validated events |
 | `gm_modes/prompt_wrapper.py`, `scene_framing.py` | **Replace** | Become `context/builder.py` (layered, budgeted; no `repr()` of raw state) |
-| `services/llm_client.py` | **Change** | New provider-neutral interface: `generate(messages, tools) -> LLMResponse(text, tool_calls, usage)`. Tool dispatch moves out of providers. Add Ollama tools / JSON-schema mode |
+| `services/llm_client.py` | **Change** | New provider-neutral interface: `generate(messages, tools) -> LLMResponse(text, tool_calls, finish_reason, usage)`. Tool dispatch moves out of providers. Add Ollama tools / JSON-schema mode |
 | `services/llm_response.py` | **Change** | Add `tool_calls: list[ToolCall]`, `finish_reason`, `usage` |
 | `services/llm_utils.py` | **Change** | Robust fenced-block parser (§9.4) |
 | `services/retry.py` | **Keep** | Restrict `retry_exceptions` to transient errors (timeouts, 429, 5xx) |
@@ -905,10 +905,12 @@ sides     := int | "F" | "%"
 suffix    := "kh" int | "kl" int            # keep highest/lowest (advantage/disadvantage)
            | "dh" int | "dl" int
            | "!" int?                       # explode on >= n (default max)
-           | "r" cmp? int                   # reroll once
-           | ">=" int | "<=" int            # count successes (pool mechanics)
+           | "r" cmp? int                   # reroll once (default cmp "=")
+           | ">=" num | "<=" num            # count successes (pool mechanics)
            | "f" int                        # count failures/ones (botch detection)
 ref       := "{" identifier "}"            # resolved from check args / sheet paths
+cmp       := ">=" | "<=" | ">" | "<" | "="
+num       := int | ref
 ```
 
 Examples: `1d20+5`, `2d20kh1+3`, `8d10>=6!10`, `2d6+{cool}`, `4dF+2`, `1d100<=45`.
@@ -1092,7 +1094,7 @@ from that result.
 | `lookup_rules` | Search ruleset digest + uploaded rulebooks (existing document store) | `query` | — |
 | `whisper` | Send a private message to specific players | `player_ids[]`, `content` | `message.posted(visibility=players)` |
 | `apply_state_update` | **Narrowed** legacy tool: JSON merge-patch restricted to `flags.*`, `known_locations.*`, `arc.open_threads` | `patch` | `state.patched` |
-| `request_save` | Suggest a named save at a dramatic moment (the LLM can never *load*) | `name` | `save.created` |
+| `request_save` | Create a named save at a dramatic moment (the LLM can never *load*) | `name` | `save.created` |
 
 Explicitly **not** tools for the LLM: loading saves, deleting anything, changing memberships,
 changing the ruleset/setting, editing another campaign, or reading secret seeds.
