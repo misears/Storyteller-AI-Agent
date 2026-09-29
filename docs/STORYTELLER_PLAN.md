@@ -41,9 +41,10 @@
 1. **The server is the source of truth, the LLM is the narrator.** The LLM *requests* mechanics
    (dice, sheet changes, scene changes) through tools; the server validates, executes, persists and
    returns results. The LLM never invents dice results or directly mutates state.
-2. **Everything that happens is an event.** One append-only event log per campaign is the source of truth. Chat log, dice log, sheet
-   history, game state and save points are all views over it (or snapshots of it). This makes
-   "save at any point / resume exactly" a property of the design rather than a feature bolted on.
+2. **Everything that happens is an event.** One append-only event log per campaign is the source of
+   truth. Chat log, dice log, sheet history, game state and save points are all views over it (or
+   snapshots of it). This makes "save at any point / resume exactly" a property of the design
+   rather than a feature bolted on.
 3. **Ruleset- and setting-agnostic core.** Nothing in the core engine knows what a "clan", "Masquerade"
    or "spell slot" is. That lives in data packs (YAML + JSON Schema) and optional hook modules.
 4. **Unbounded players, bounded prompts.** Player count is unlimited in the data model. Prompt size is
@@ -291,7 +292,8 @@ sequenceDiagram
   `interrupted` on resume (see §6.5).
 - Every `DiceRoll` is linked to the turn **and** a chat message. It links to the system message that
   announces the roll, and the GM narration message lists the `dice_roll_ids` it was based on.
-- Narration is streamed to clients as `message.delta` events but only becomes part of the log after commit, as a persisted `message.posted` event
+- Narration is streamed to clients as `message.delta` events but only becomes part of the log after
+  commit, as a persisted `message.posted` event
   (which clients receive as the SSE type `message.final`).
 - The tool loop is bounded: at most 6 rounds and 12 tool calls per turn (configurable). When the
   limit is hit, the model gets one final "narrate now, no tools" instruction.
@@ -489,7 +491,8 @@ class DiceRoll(BaseModel):
     successes: int | None = None               # pool-based mechanics
     target: int | None = None                  # DC / difficulty / TN
     outcome: Literal["critical_success", "success", "partial", "failure",
-                     "critical_failure", "botch"]
+                     "critical_failure", "botch"] | None = None   # None: value-only rolls
+                                                                  # (initiative, damage, chargen)
     interpretation: str                        # ruleset text, e.g. "7-9: success with a cost"
     reason: str                                # "sneak past the guard"
     visibility: Visibility = Visibility()
@@ -746,9 +749,11 @@ See [ADR-0001](./adr/0001-persistence-sqlite-event-log.md).
     the durability unit; `FULL` optional via setting).
   - Sync engine used from async routes via `run_in_threadpool`. Writes per campaign are serialised
     by an `asyncio.Lock` (single process). `aiosqlite` is an alternative if profiling shows need.
-- **SQLModel** was considered. It is rejected for now because we want DB rows and API models to evolve separately
+- **SQLModel** was considered. It is rejected for now because we want DB rows and API models to
+  evolve separately
   (see §5 note). The choice is revisitable.
-- **Postgres** stays possible later with no model changes (SQLAlchemy). It is only needed for hosted multi-tenant use (Q1).
+- **Postgres** stays possible later with no model changes (SQLAlchemy). It is only needed for hosted
+  multi-tenant use (Q1).
 - **JSON export** of a whole campaign exists for portability and backups (§6.7).
 
 ### 6.2 Tables
@@ -1195,7 +1200,7 @@ class LLMProvider(Protocol):
   stripped from the narration shown to players.
 
 ```python
-FENCE = re.compile(r"```(storyteller-actions|json)[ \t]*\n", re.IGNORECASE)
+FENCE = re.compile(r"```(storyteller-actions|json)[ \t]*\r?\n", re.IGNORECASE)
 CLOSING = re.compile(r"\s*```\s*\Z")          # only the closing fence may follow
 
 def extract_actions(text: str) -> tuple[str, list[dict] | None]:
@@ -1448,7 +1453,8 @@ class CampaignBible(BaseModel):
 ## 13. API endpoints & streaming
 
 All new routes are under `/api/v1` *or* at the root to match the existing style (Q12). They are listed
-at root below. Auth: the player/host token as a bearer token in the `Authorization` header, except pack discovery.
+at root below. Auth: the player/host token as a bearer token in the `Authorization` header, except
+pack discovery.
 
 ### 13.1 Packs
 
@@ -1567,13 +1573,16 @@ exceptions:
 Secret events are delivered only to authorised subscribers. Whisper events go only to their target
 players and the GM.
 
-On reconnect, a `Last-Event-ID` of the form `seq.subindex` (a transient delta) is truncated to `seq`. The server replays every committed event after `seq`, including the `message.final` that supersedes any partial deltas, and resumes live deltas if that turn is still streaming.
+On reconnect, a `Last-Event-ID` of the form `seq.subindex` (a transient delta) is truncated to
+`seq`. The server replays every committed event after `seq`, including the `message.final` that
+supersedes any partial deltas, and resumes live deltas if that turn is still streaming.
 
-Player input stays on plain `POST`, which gives simple idempotency and retries. SSE works through proxies and needs no extra
-dependency (a `StreamingResponse` with `text/event-stream`). WebSockets can be added later with the same `Broadcaster`.
+Player input stays on plain `POST`, which gives simple idempotency and retries. SSE works through
+proxies and needs no extra
+dependency (a `StreamingResponse` with `text/event-stream`). WebSockets can be added later with the
+same `Broadcaster`.
 
 ---
-
 
 ## 14. Security & trust boundaries
 
@@ -1603,7 +1612,7 @@ in the repo. M0 adds `.github/workflows/ci.yml` (Python 3.12, pytest + ruff).
 | Unit — dice | Parser (valid/invalid/limits), each mechanic kind, RNG determinism, unbiased sampling (chi-square smoke test with fixed seed), `RngProof` re-derivation | Pure functions, fixed seeds, property tests with **Hypothesis** (dev dependency) for parser round-trips and bounds |
 | Unit — rules | Pack loading, sheet schema validation, formula evaluator (including rejection of `__import__`, attribute access, lambdas), chargen constraints | Fixture packs in `tests/fixtures/packs/` |
 | Unit — reducers | Every event type → expected state; reducers are pure and total | Table-driven tests |
-| Unit — parsing | Fenced-block extraction: nested braces, multiple blocks, prose with braces, truncated JSON, no block | Table-driven |
+| Unit — parsing | Fenced-block extraction: nested braces, multiple blocks, prose with braces, truncated JSON, CRLF line endings, indented JSON, trailing prose, no block | Table-driven |
 | Unit — context | Budget enforcement, eviction order, secret filtering, deterministic assembly | **Golden files** of rendered prompts per bundled pack × mode, updated via `--update-goldens` |
 | Agent — tool loop | Turns with `ScriptedLLMProvider`: roll → narrate; invalid args → model gets error → retries; loop limit; fabricated-roll narration → corrective re-prompt; fallback JSON-mode path for non-tool models | Scripted responses, seeded dice |
 | Persistence | Unit of work atomicity (crash injected mid-turn → no partial projections, dice kept); projection rebuild equals live projections; optimistic sheet locking (`409`) | Temp SQLite file per test (`tmp_path`) |
