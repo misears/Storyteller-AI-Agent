@@ -2,11 +2,7 @@
 Chronicle starter: seeds factions, city, and tone.
 """
 
-<<<<<<< HEAD
-from typing import Any, Dict
-=======
 from typing import Dict, Any
->>>>>>> cb5351ad94b7d8db2bca5574351621570b88fe74
 from .faction_engine import ensure_faction
 from .city_map import add_district
 

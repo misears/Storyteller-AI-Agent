@@ -101,6 +101,7 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 18px;
+      -webkit-backdrop-filter: blur(1.5px);
       backdrop-filter: blur(1.5px);
     }
 
@@ -195,6 +196,16 @@
       grid-column: 1 / -1;
     }
 
+    .flex-280 { flex: 1 1 280px; }
+    .flex-180 { flex: 1 1 180px; }
+    .flex-300 { flex: 1 1 300px; }
+    .fieldset-styled {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .button-row-mt { margin-top: 14px; }
+
     @media (max-width: 920px) {
       .layout { grid-template-columns: 1fr; }
       .field-grid { grid-template-columns: 1fr; }
@@ -217,19 +228,19 @@
     <section class="card" id="sheet-editor" aria-labelledby="editor-title">
       <h2 id="editor-title">Sheet Editor</h2>
       <div class="session-row">
-        <div style="flex:1 1 280px;">
+        <div class="flex-280">
           <label for="session-select">Session</label>
           <select id="session-select" aria-describedby="session-hint"></select>
           <p id="session-hint" class="muted">Pick a live session, or keep blank for a standalone sheet.</p>
         </div>
-        <div style="flex:1 1 180px;">
+        <div class="flex-180">
           <label for="audience-select">Used By</label>
           <select id="audience-select">
             <option value="player">Player</option>
             <option value="storyteller">Storyteller</option>
           </select>
         </div>
-        <div style="flex:1 1 180px;">
+        <div class="flex-180">
           <label for="genre-select">Genre</label>
           <select id="genre-select">
             <option value="fantasy">Fantasy</option>
@@ -241,24 +252,24 @@
       </div>
 
       <div class="template-row">
-        <div style="flex:1 1 300px;">
+        <div class="flex-300">
           <label for="template-select">Template</label>
           <select id="template-select"></select>
         </div>
-        <div style="flex:1 1 300px;">
+        <div class="flex-300">
           <label for="sheet-name">Sheet Name</label>
           <input id="sheet-name" type="text" placeholder="Character or tracker name" />
         </div>
       </div>
 
       <form id="sheet-form" novalidate>
-        <fieldset style="border: 1px solid var(--border); border-radius: 12px; padding: 12px;">
+        <fieldset class="fieldset-styled">
           <legend>Template Fields</legend>
           <div id="dynamic-fields" class="field-grid"></div>
         </fieldset>
       </form>
 
-      <div class="button-row" style="margin-top: 14px;">
+      <div class="button-row button-row-mt">
         <button id="new-sheet" class="secondary" type="button">New Sheet</button>
         <button id="save-sheet" type="button">Save Internally</button>
         <button id="export-pdf" class="secondary" type="button">Export PDF</button>
