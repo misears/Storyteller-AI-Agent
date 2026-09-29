@@ -17,6 +17,7 @@
 
 1. [Guiding principles](#1-guiding-principles)
    - [1.1 Deployment phases (owner decision, Q1)](#11-deployment-phases-owner-decision-q1)
+   - [1.2 Other owner decisions](#12-other-owner-decisions)
 2. [Current state & reconciliation (keep / change / add)](#2-current-state--reconciliation-keep--change--add)
 3. [Target architecture](#3-target-architecture)
 4. [Data flow for one turn](#4-data-flow-for-one-turn)
@@ -24,6 +25,7 @@
 6. [Storage, save & resume](#6-storage-save--resume)
 7. [Dice engine (server-authoritative)](#7-dice-engine-server-authoritative)
 8. [Ruleset plugin & setting pack formats](#8-ruleset-plugin--setting-pack-formats)
+   - [8.6 PDF system import wizard](#86-pdf-system-import-wizard-owner-requirement-q3)
 9. [LLM integration: tool set, SYSTEM_PROTOCOL, state updates](#9-llm-integration-tool-set-system_protocol-state-updates)
 10. [LLM context strategy](#10-llm-context-strategy)
 11. [Multi-player handling (1..N)](#11-multi-player-handling-1n)
@@ -83,6 +85,16 @@ What this means for Phase 1:
   - anything Discord-specific
 - **Guard rails:** the server refuses to bind to a non-loopback address unless `network` mode is
   explicitly enabled. Phase 1 therefore needs no auth, and it is still safe.
+
+### 1.2 Other owner decisions
+
+| Q | Decision | Where it lands |
+|---|---|---|
+| Q2 | **Real accounts** (not just join codes) | §11.1: `Account` model built in Phase 1, password login enforced from M12 |
+| Q3 | Game systems come **from the PDFs the owner selects**. Uploading a new rulebook PDF plus answering a few pop-up questions should adapt the program to that system. **World of Darkness is primary** | New §8.6 PDF system import wizard; WoD (VtM Revised, the owner's PDFs) is the first and reference system |
+| Q4 | Committed PDFs and runtime data **may be purged** from the repo and its history | T0.3 (with the backup warning there) |
+| Q6 | Loading an old save starts a **new timeline** | §6.4 fork semantics (unchanged, now confirmed) |
+| Q13 | **Delete** all `*-BlackDragon*` files | Done in this PR (T0.2). All 7 were older copies or exact duplicates of the originals |
 
 ---
 
@@ -363,6 +375,7 @@ class Campaign(BaseModel):
     ruleset_version: str             # pinned; upgrades are explicit migrations
     setting_pack_id: str
     setting_pack_version: str
+    source_document_ids: list[str] = []   # PDFs selected for this campaign (rules + lore); §8.6
     table_config: "TableConfig"
     bible: "CampaignBible | None" = None   # generated in session zero (§12)
     llm_profile: str = "default"          # key into runtime settings (§10.4)
@@ -382,9 +395,20 @@ class TableConfig(BaseModel):
     absent_pc_policy: Literal["background", "npc_controlled", "ask_table"] = "background"
 
 
+class Account(BaseModel):
+    """A real user account (Q2). Password hash and sessions live only in the DB, never in API models."""
+    id: Id
+    username: str
+    email: str | None = None
+    is_admin: bool = False                  # the computer's owner / server operator
+    discord_user_id: str | None = None      # linked in Phase 3
+    created_at: datetime
+
+
 class Player(BaseModel):
     """A human participant. Identity is global; participation is per campaign (Membership)."""
     id: Id
+    account_id: Id | None = None            # optional in Phase 1, required from Phase 2
     display_name: str
     created_at: datetime
 
@@ -716,6 +740,15 @@ class Ruleset(BaseModel):
     npc_tiers: list[NpcTier]
     sheet_schema: dict[str, Any]               # JSON Schema 2020-12 (loaded from sheet.schema.json)
     prompt_digest: str                         # ≤ ~800 tokens, injected into SYSTEM_PROTOCOL
+    origin: Literal["bundled", "pdf_import", "manual"] = "bundled"
+    source_documents: list["SourceRef"] = []   # PDFs this pack was derived from (§8.6)
+    field_citations: dict[str, str] = {}       # JSON pointer -> "doc_id#page" for rules lookup
+
+
+class SourceRef(BaseModel):
+    document_id: str                           # id in the document store
+    sha256: str                                # detects a changed/replaced PDF
+    role: Literal["core_rules", "supplement_rules", "setting", "reference"]
 
 
 class SettingPack(BaseModel):
@@ -832,8 +865,8 @@ Each type has a versioned Pydantic payload model (`models/events.py`) and a redu
   `auto`/`scene_end`/`session_end`). They make resume O(events since snapshot).
 - **Loading an earlier save** never destroys history. It **forks a new branch** from
   `save.event_seq` (`branch.forked`) and sets `active_branch_id`. The old timeline stays browsable
-  and can be restored. A `pre_load` snapshot of the current head is taken first. (Q6 asks whether
-  the owner prefers "overwrite" semantics instead.)
+  and can be restored. A `pre_load` snapshot of the current head is taken first. (Confirmed by
+  the owner: new timeline, Q6.)
 - RNG streams are **per branch** (key = HMAC(seed, branch_id)). Re-playing from an old save
   therefore does **not** reproduce the same future dice. This prevents save-scumming by
   foreknowledge while keeping each branch deterministic (ADR-0002).
@@ -975,7 +1008,8 @@ LLM or player input.
 
 The existing `roll_dice_pool(pool, again)` becomes a shim over `pool_successes`. Note that it
 currently hard-codes success on 8+ (CofD) while the bundled PDFs are VtM Revised (difficulty-based,
-ones cancel successes). The WoD ruleset pack must pick one explicitly (Q3).
+ones cancel successes). The `vtm-revised` pack uses the Revised rules (difficulty, ones cancel,
+botch). The PDF import wizard (§8.6) asks the owner to confirm this.
 
 ---
 
@@ -998,7 +1032,7 @@ backend/content/settings/<setting_id>/
   lore/*.md             # optional; ingested into the existing document store on install
 ```
 
-Discovery order: bundled `content/` first, then the user directory `data/packs/` (installed via the UI
+Discovery order: bundled `content/` first, then the user directory `data/packs/` (PDF-imported packs, §8.6, or packs installed via the UI
 or copied in). `RulesetRegistry` validates each manifest with Pydantic and each `sheet.schema.json`
 with a meta-schema. Invalid packs are listed with errors but never loaded.
 
@@ -1060,7 +1094,7 @@ access, no calls outside the allow-list, and no `eval`/`exec`.
 id: wod-city-nights
 version: 1.0.0
 name: City by Night
-compatible_rulesets: [wod-v20-pool]
+compatible_rulesets: [vtm-revised]
 genre: [urban-fantasy, horror]
 tone: [personal horror, political intrigue, neon-soaked]
 default_lines: [sexual violence, harm to children]
@@ -1093,9 +1127,95 @@ behaviour: tick, threshold descriptions and faction-move suggestions.
 |---|---|
 | `freeform` ruleset | Replaces today's genre templates (fantasy/sci-fi/…) so existing sheets migrate losslessly; simple `1d20`/`2d6` checks |
 | `pbta-generic` ruleset | Smallest complete mechanic; great for tests |
-| `d20-srd` ruleset | D&D 5e SRD 5.1 subset (CC-BY-4.0) — only if the owner confirms (Q3/Q4) |
-| `wod-v20-pool` ruleset | Matches the owner's existing material; mechanics only, no copied text (R7) |
-| `generic-fantasy`, `wod-city-nights` settings | One per flavour, proves the setting/ruleset split |
+| `vtm-revised` ruleset (**primary**) | Vampire: The Masquerade Revised, matching the owner's PDFs. It is the first system and the reference for the PDF importer. The bundled file holds mechanics structure only (dice rules, trait names, sheet schema) written for this project. Rule *text* comes from the owner's own PDFs at runtime (R6/R7) |
+| `wod-city-nights` setting | Today's `chronicle_starter` / `secrecy_tracker` content as data. Enriched from the Camarilla/Anarchs/Sabbat guides via the importer |
+
+Other systems (D&D, Call of Cthulhu, Shadowrun, …) are **not** hand-bundled. They are added by
+uploading their rulebook PDFs through the import wizard (§8.6).
+
+### 8.6 PDF system import wizard (owner requirement, Q3)
+
+**Goal:** the owner selects one or more PDFs (core rulebook, supplements, setting books), answers a
+few pop-up questions, and the program adapts to that system. It produces a validated ruleset pack
+and/or setting pack. It needs no code changes and no hand-written YAML.
+
+```mermaid
+flowchart TD
+    A["Upload or select PDFs<br/>(existing /documents upload + OCR)"] --> B["Classify each PDF<br/>core rules / supplement / setting / reference"]
+    B --> C["Detect a known system?<br/>(title, trademark and term fingerprints)"]
+    C -- "known, e.g. VtM Revised" --> D["Start from the bundled pack<br/>(vtm-revised)"]
+    C -- unknown --> E["Start from an empty draft"]
+    D --> F["Extract with LLM + retrieval, section by section:<br/>dice, traits, resources, chargen, combat and turns, NPC stats, setting"]
+    E --> F
+    F --> G["Draft pack + confidence + page citations per field"]
+    G --> H["Pop-up questions<br/>(only low-confidence or high-impact items)"]
+    H --> I["Validate: schema checks, dice test rolls,<br/>sample character sheet, formula checks"]
+    I -- errors --> H
+    I -- ok --> J["Save pack to data/packs (local, versioned)<br/>ready for new campaigns"]
+```
+
+**Extraction.** It reuses `pdf_ingest` (PyMuPDF + OCR) and the document store. Each PDF is split
+into page-tagged chunks. For each part of the ruleset (dice mechanic, attributes, skills/abilities,
+powers, resources/trackers, character creation, combat and initiative, NPC stat blocks, setting
+factions/locations), the importer:
+
+1. retrieves the relevant pages (keyword search, from the table of contents when present)
+2. asks the LLM for that part only, as JSON-schema-constrained output matching §5.5
+3. records a **confidence** and **page citations** for each field
+
+Small, separate calls keep this workable on local models. The whole run is resumable, and its
+progress is shown to the user.
+
+**Pop-up questions (target: 5–10).** Each question shows what was found, the page it came from,
+and an editable default. Only uncertain or high-impact items are asked. For example:
+
+| # | Question (example for VtM Revised) | Answer type |
+|---|---|---|
+| 1 | "This looks like **Vampire: The Masquerade, Revised Edition**. Correct?" | Yes / pick another / name it |
+| 2 | "Dice: roll a pool of **d10s**; each die ≥ **difficulty (default 6)** is a success; **1s cancel successes**; no successes + any 1 = **botch**. Correct?" | Yes / edit each rule |
+| 3 | "Attributes found: Strength, Dexterity, Stamina, Charisma, Manipulation, Appearance, Perception, Intelligence, Wits (dots 1–5). Correct?" | Checklist + add/rename |
+| 4 | "Abilities found: 30 (Talents / Skills / Knowledges). Review?" | Checklist |
+| 5 | "Tracked resources: Health (7 levels), Willpower, Blood Pool, Humanity/Path. Correct?" | Checklist + max values |
+| 6 | "Character creation: 7/5/3 attributes, 13/9/5 abilities, 3 disciplines, 5 backgrounds, 7 virtue dots, 15 freebie points. Correct?" | Numbers form |
+| 7 | "Initiative: Dexterity + Wits + 1d10, highest acts first. Correct?" | Yes / edit |
+| 8 | "Which of the selected PDFs are **setting** books (factions, cities) rather than rules?" | Per-PDF toggle |
+
+A question the owner skips uses the extracted value, flagged as *unverified* in the pack. It can be
+revisited later from the ruleset page.
+
+**Validation before saving** (M3 machinery):
+
+- the pack manifest and sheet schema validate
+- 20 seeded test rolls go through the dice interpreter, with an example shown ("7 dice at
+  difficulty 6 → 3 successes")
+- a sample PC is generated through the chargen steps and must validate
+- every formula compiles with the safe evaluator
+
+The result is saved as `data/packs/rulesets/<id>@<version>/` (and `data/packs/settings/…` for setting
+content), with `origin: pdf_import`, `source_documents` (with sha256) and `field_citations`.
+
+**Adding a PDF to an existing system.** Uploading a supplement (e.g. *Guide to the Sabbat*) runs the
+same wizard in **extend** mode. The owner sees a diff (new disciplines, factions, locations), and
+accepting it creates a new pack **version**. Campaigns stay pinned to their version (§6.6), and the
+owner can choose to upgrade a campaign.
+
+**Using the selected PDFs in play.** When a campaign is created, the owner picks the system (the
+ruleset pack) and **which PDFs apply** (`Campaign.source_document_ids`). In that campaign,
+`lookup_rules` and lore retrieval search only those PDFs, and cite pages from them.
+
+**Failure modes:**
+
+- A scanned PDF with poor OCR is flagged ("pages 40–55 unreadable"), and the owner can fix those
+  fields manually.
+- If the system cannot be structured at all, it falls back to the `freeform` ruleset, with rules
+  answered by `lookup_rules` over the PDFs. The game is still playable, but the sheet is less
+  strict.
+- Extraction never invents missing rules silently. Missing parts become explicit questions.
+
+**Copyright.** PDFs and anything derived from them stay **local** (`data/`, which is git-ignored)
+and are never bundled or committed. Campaign export includes the derived pack (structure and short
+field values) but **not** the PDFs or long rule text. The receiving computer must hold its own
+copy of the books to use `lookup_rules` (R6).
 
 ---
 
@@ -1334,7 +1454,18 @@ Larger windows scale up the verbatim window and retrieval first.
 
 ### 11.1 Identity (lightweight, local-first)
 
-**Phase 1 (single computer):** there is no login. The server runs on loopback only, and
+**Accounts (owner decision Q2: real accounts).** An `Account` has a username, an optional email,
+and a password hash (argon2id via `argon2-cffi` or bcrypt, checked against the advisory DB when
+added). Sessions are server-side and use an HttpOnly cookie. A `Player` belongs to an `Account`, and
+one account can have several players (one per campaign). The account model and screens are built
+in **Phase 1**. How strictly they are enforced depends on the phase (Q16):
+
+- **Phase 1:** login is optional. The local host can create accounts and switch between them.
+- **Phase 2:** login is required for every remote user.
+- **Phase 3:** a Discord identity can be linked to an account (Discord OAuth2), so the same person
+  is recognised on the web and in Discord.
+
+**Phase 1 (single computer):** there is no network login. The server runs on loopback only, and
 `get_current_actor()` resolves every request to the **local host**, who has full table authority.
 Players are added in the lobby by name ("Add player at this computer"). Every input carries the
 `player_id`/`character_id` chosen in the play view's **"speaking as"** selector. Authority checks
@@ -1344,13 +1475,16 @@ behind a "reveal" click, since everyone shares the screen.
 
 **Phase 2 (network, M12)** adds the following:
 
-- `Player` = a display name + an opaque **player token** (random 256-bit, stored hashed). The token is
+- Required account login (password + session cookie), with brute-force throttling and a password
+  reset handled by the host (no email server needed).
+- **Join codes** invite an account into a campaign (creating its `Membership`).
+- For non-browser clients (the Discord bot, scripts): a `Player` gets an opaque **API token** (random 256-bit, stored hashed). The token is
   issued when a player joins through a campaign **join code** (short, rotatable) and kept in
   `localStorage`. It is sent as a bearer token in the HTTP `Authorization` header.
 - The campaign creator gets a **host token** with the table-admin authority (see the §11.6 authority
   matrix).
-- This is enough for a LAN table. Real accounts/OAuth are deferred (Q2). Tokens are
-  designed so an auth provider can be slotted in behind `get_current_player()` later.
+- All of this sits behind `get_current_actor()`. Adding more login providers later (Discord,
+  Google) only needs a new resolver.
 
 ### 11.2 Modes are derived, not fixed
 
@@ -1424,7 +1558,7 @@ The mode switches automatically when members join or leave. The host can pin it.
 
 ```mermaid
 flowchart TD
-    A["Create campaign<br/>title, host player"] --> B["Pick ruleset<br/>GET /rulesets"]
+    A["Create campaign<br/>title, host player"] --> B["Pick game system and the PDFs that apply<br/>GET /rulesets, /documents"]
     B --> C["Pick compatible setting pack<br/>GET /themes?ruleset=…"]
     C --> D["Table config<br/>tone, lines and veils, mode, turn policy, dice visibility"]
     D --> E["Generate Campaign Bible<br/>(LLM, JSON-schema output)"]
@@ -1506,6 +1640,10 @@ name the speaking player). From Phase 2 (M12), the player/host token goes as a b
 | `POST /rulesets/{id}/dice/preview` | Parse + roll an expression **outside** any campaign (not logged; debug/teaching; replaces `routers/tools.py`) |
 | `GET /themes`, `GET /themes/{id}` | Setting packs (`?ruleset=` filters compatible ones). Named `themes` to avoid colliding with the existing `/settings` (runtime config) |
 | `POST /packs/import` | Upload a pack zip into `data/packs/` (host only; data packs only — see §14) |
+| `POST /rulesets/imports` | Start a PDF system import job `{document_ids[], mode: new\|extend, target_pack_id?}` (host) |
+| `GET /rulesets/imports/{job_id}` | Progress, draft pack, per-field confidence/citations, and the pending pop-up questions |
+| `POST /rulesets/imports/{job_id}/answers` | Answer or skip questions; field edits |
+| `POST /rulesets/imports/{job_id}/validate` / `…/commit` | Run test rolls + sample character / save the pack version |
 
 ### 13.2 Campaigns, players, sessions
 
@@ -1663,6 +1801,7 @@ in the repo. M0 adds `.github/workflows/ci.yml` (Python 3.12, pytest + ruff).
 | API | All routers with `TestClient`, authority matrix (every cell), SSE stream (events, `Last-Event-ID` resume, visibility filtering), compat `/gm/step` | Mock/scripted LLM |
 | Multiplayer | Concurrent `POST /turns` from 5 players → serialised, declarations batched, no lost inputs; join/leave mid-scene; spotlight stats | `asyncio.gather` against the app |
 | Pack validation | Every bundled pack validates, digests ≤ budget, example characters validate | Runs in CI |
+| PDF import | Classification, chunking with page tags, per-section extraction against recorded LLM outputs, question selection (only low-confidence fields asked), validation gate, extend-mode diff, citation integrity. Uses self-written fixture PDFs only; no copyrighted text in the repo | Scripted LLM; fixture PDFs generated in tests |
 | Live-LLM smoke (optional) | 5 scripted player inputs against a real Ollama/OpenAI model; asserts only structural properties (tool used for rolls, no fabricated rolls) | Marked `@pytest.mark.live`, excluded from CI by default |
 
 ### 15.2 Test helpers to add
@@ -1683,7 +1822,7 @@ existing tests green.
 flowchart LR
     M0["M0 Decisions and cleanup"] --> M1["M1 Persistence and event log"]
     M0 --> M2["M2 Dice engine"]
-    M1 --> M3["M3 Ruleset and setting packs"]
+    M1 --> M3["M3 Packs and PDF system import"]
     M2 --> M3
     M3 --> M4["M4 Sheets v2 and NPCs"]
     M1 --> M5["M5 GM loop v2, tools, protocol, chat log"]
@@ -1712,8 +1851,8 @@ recommended order is M12 → M13 (Q15).
 | ID | Task | Acceptance criteria |
 |---|---|---|
 | T0.1 | Owner answers open questions (§18). ADRs 0001–0005 accepted or amended | ADR status set to *Accepted* |
-| T0.2 | Delete `*-BlackDragon.*` duplicates (after owner confirms, Q13) | No `*-BlackDragon*` files. Tests green |
-| T0.3 | Stop tracking runtime data + PDFs (`backend/data/*.db`, `*.json`, `documents/`). Add to `.gitignore`. Seed files are created at startup if missing | Fresh clone boots with empty data. Tests use `tmp_path` data dirs, so running `pytest` leaves `git status` clean (today it modifies `storyteller.db`/`character_sheets.json` and adds PDFs under `data/documents/`). Q4 decides whether history is rewritten |
+| T0.2 | ✅ Delete `*-BlackDragon.*` duplicates (**done in this PR**, owner-approved) | No `*-BlackDragon*` files. Tests green (22 — the 9 removed tests were duplicates in `test_api-BlackDragon.py`) |
+| T0.3 | Purge runtime data + PDFs (owner-approved, Q4). **Before merging: back up `backend/data/documents/*.pdf` and `storyteller.db` outside the repo.** When other clones pull a commit that untracks files, git deletes those files there. Steps: `git rm --cached`, add to `.gitignore`, and create seed files at startup if missing. Then the owner rewrites history with `git filter-repo --path storyteller_ai/backend/data --invert-paths` and force-pushes (an agent cannot force-push); every other clone must re-clone. Afterwards, re-upload the PDFs through the app | Fresh clone boots with empty data. The PDFs are absent from all history. Tests use `tmp_path` data dirs, so running `pytest` leaves `git status` clean (today it modifies `storyteller.db`/`character_sheets.json` and adds PDFs under `data/documents/`). |
 | T0.4 | Add CI workflow (pytest + ruff, Python 3.12) | CI runs on PRs and is green |
 | T0.5 | Tighten CORS (configured origins; no `*` with credentials); default bind `127.0.0.1` | Test asserts CORS config |
 
@@ -1737,17 +1876,22 @@ recommended order is M12 → M13 (Q15).
 | T2.3 | Mechanic interpreters (`sum_vs_target`, `pool_successes`, `bands`, `roll_under`) | Table-driven tests incl. crits/botches. The old `roll_dice_pool` shim passes the old tests |
 | T2.4 | `dice.rolled` events + projection + `GET/POST /campaigns/{id}/dice` + system chat message per roll | Every roll linked to a chat message and turn. Secret rolls are hidden from players |
 
-### M3 — Ruleset & setting packs
+### M3 — Ruleset & setting packs + PDF system import
 
 | ID | Task | Acceptance criteria |
 |---|---|---|
 | T3.1 | Pack loader/registry + manifest models + `jsonschema` validation (check the advisory DB) | Invalid packs are reported, not loaded |
 | T3.2 | Safe formula evaluator | Rejects everything outside the allow-list (tests) |
 | T3.3 | Bundled `freeform` + `pbta-generic` rulesets | Validate in CI. Example sheets validate |
-| T3.4 | `wod-v20-pool` ruleset + `wod-city-nights` setting (from `chronicle_starter` / `secrecy_tracker` data) | Seeding a campaign reproduces today's factions/districts/Masquerade as trackers |
-| T3.5 | `d20-srd` ruleset (if Q3 says yes) + `generic-fantasy` setting | Attribution file present (CC-BY-4.0) |
+| T3.4 | **`vtm-revised` ruleset (primary)** + `wod-city-nights` setting (from `chronicle_starter` / `secrecy_tracker` data) | Seeding a campaign reproduces today's factions/districts/Masquerade as trackers. A Revised-rules character validates |
+| T3.5 | Campaign-level PDF selection (`source_document_ids`); `lookup_rules` scoped to the selected PDFs with page citations | Retrieval never returns chunks from unselected PDFs |
 | T3.6 | `GET /rulesets`, `/rulesets/{id}/sheet-schema`, `/themes` | API tests |
 | T3.7 | Generic `trackers.py` replacing faction/secrecy/city engines | Old engine tests are ported |
+| T3.8 | Importer core: PDF classification, system fingerprinting, page-tagged chunking, per-section JSON-schema extraction with confidence + citations (resumable job) | CI: a small self-written fixture PDF + recorded LLM outputs give a deterministic expected draft. Manual acceptance (local, the owner's VtM Revised PDFs): extracted dice/attributes/abilities/resources match `vtm-revised` for ≥ 90% of fields |
+| T3.9 | Wizard UI: pop-up questions (≤ 10), per-field edit, skip → *unverified* flag | The owner completes the VtM import in ≤ 10 questions |
+| T3.10 | Validation step (test rolls, sample character, formula compile) + save to `data/packs` with provenance | An invalid draft cannot be saved. The saved pack loads in the registry |
+| T3.11 | Extend mode: a supplement PDF → diff → new pack version | *Guide to the Sabbat* adds factions to `wod-city-nights` as v1.1. Existing campaigns stay on v1.0 |
+| T3.12 | Second-system proof: import a non-WoD rulebook the owner provides (Q17) | A playable campaign using only the imported pack |
 
 ### M4 — Character sheets v2 (PCs & NPCs)
 
@@ -1794,7 +1938,7 @@ recommended order is M12 → M13 (Q15).
 
 | ID | Task | Acceptance criteria |
 |---|---|---|
-| T8.1 | Local players, memberships, "speaking as" actor resolution, authority matrix (no tokens yet) | Every authority-matrix cell tested using the chosen speaking player |
+| T8.1 | Accounts (create/switch locally, password optional in Phase 1), local players, memberships, "speaking as" actor resolution, authority matrix (no tokens yet) | Every authority-matrix cell tested using the chosen speaking player |
 | T8.2 | `Broadcaster` + SSE `/stream` with visibility filtering + `Last-Event-ID` | A player window and a GM window on the same machine each get correctly filtered events. Reload replays missed events |
 | T8.3 | Turn policies: freeform batching, round-robin, initiative, timeouts | Concurrency test: 5 players, no lost/duplicated inputs |
 | T8.4 | Spotlight stats + debt injection + host view | Stats update. Prompt contains the debtors |
@@ -1815,7 +1959,7 @@ recommended order is M12 → M13 (Q15).
 | ID | Task | Acceptance criteria |
 |---|---|---|
 | T10.1 | Campaign lobby: create / add local players / list / resume | Manual QA script + API tests |
-| T10.2 | Session-zero wizard (ruleset → setting → table → bible → chargen) | End-to-end with mock provider |
+| T10.2 | Session-zero wizard (system + PDFs → setting → table → bible → chargen) | End-to-end with mock provider |
 | T10.3 | Play view: SSE chat, dice log panel, turn order, whose-turn, **"speaking as" selector**, roll button, GM-view window for secrets | Two browser tabs stay in sync |
 | T10.4 | Sheet view generated from JSON Schema + version history/revert | Works for every bundled ruleset |
 | T10.5 | Saves panel: save/load/branches/export/import | Round trip through the UI |
@@ -1835,7 +1979,7 @@ recommended order is M12 → M13 (Q15).
 | ID | Task | Acceptance criteria |
 |---|---|---|
 | T12.1 | `network` mode setting: bind to a chosen interface, CORS allow-list from settings, startup warning banner | Loopback-only unless enabled. Test asserts CORS/bind config |
-| T12.2 | Join codes + player/host tokens (hashed); `get_current_actor()` resolves tokens instead of the local-host default | Unauthenticated requests rejected in network mode. Local mode unchanged |
+| T12.2 | Enforce account login (session cookie, throttling, host-run password reset) + join codes + API tokens for bots; `get_current_actor()` resolves sessions/tokens instead of the local-host default | Unauthenticated requests rejected in network mode. Local mode unchanged |
 | T12.3 | Per-device play view: each browser speaks only as its own player; "speaking as" selector limited to own characters (host keeps all) | Authority tests with tokens |
 | T12.4 | Per-token rate limits on `/turns`, `/dice`; SSE connection caps | Load test: 10 clients, no starvation |
 | T12.5 | Reconnect/presence: `away` status on SSE drop, absent-PC policy applied | Scripted disconnect scenarios |
@@ -1850,7 +1994,7 @@ uses the same HTTP API and SSE stream as the web UI, so no game logic is duplica
 |---|---|---|
 | T13.1 | Bot skeleton (library chosen at the time, e.g. `discord.py`, checked against the advisory DB); config for bot token + server URL + service token | Bot connects; `/storyteller ping` works |
 | T13.2 | Channel ↔ campaign binding (`/campaign link`); thread per scene (optional) | Only linked channels accept play commands |
-| T13.3 | Identity: `/join` links a Discord user to a `Player` + character | Unlinked users get an ephemeral help reply |
+| T13.3 | Identity: Discord OAuth2 links a Discord user to an `Account`; `/join` picks a campaign `Player` + character | Unlinked users get an ephemeral help reply with a link-account URL |
 | T13.4 | Play: channel messages (or `/act`) → `POST /turns`; SSE `message.final` → channel posts (split at Discord's 2 000-char limit; optional throttled edits for streaming) | Scripted-LLM end-to-end test against a fake Discord gateway |
 | T13.5 | Commands: `/roll`, `/sheet`, `/save`, `/recap`, `/turn` | Dice results shown as embeds, identical to the dice log |
 | T13.6 | Visibility: whispers and secret info via DMs/ephemeral replies; GM-only events go to a GM-only channel | Visibility tests: no secret events reach public channels |
@@ -1870,8 +2014,9 @@ the compat UI in one browser window.
 | R3 | Context overflow / quality drift in long campaigns | High / Medium | Layered budgets, hierarchical summaries, memory retrieval, 200-turn budget test |
 | R4 | Cost/latency with hosted models (tool rounds × players) | Medium / Medium | Bounded loop, prompt caching, declaration batching, cheaper summariser, usage caps |
 | R5 | Prompt injection via player text or uploaded lore | Medium / Medium | Input tagging, server-side authority, secret filtering, lore treated as quoted reference |
-| R6 | Ruleset licensing (D&D 5e beyond SRD, WoD are proprietary) | Medium / High | Ship only SRD (CC-BY-4.0) and self-written mechanics summaries. Users supply their own books via the document store for `lookup_rules` |
-| R7 | **Copyrighted WoD PDFs and runtime DB/JSON are committed** to the repository (and git history) | Certain / High | T0.3 untrack + `.gitignore`. Owner decides on history rewrite (Q4) |
+| R6 | Ruleset licensing (WoD, D&D and most systems are proprietary) | Medium / High | Rulebook PDFs and imported packs stay local and git-ignored, and are never bundled. The bundled `vtm-revised` holds only self-written structure. Exports exclude PDFs and long rule text |
+| R14 | PDF import extracts rules wrongly (bad OCR, tables, rules spread across chapters) | High / Medium | Per-field confidence + page citations, targeted pop-up questions, validation with test rolls and a sample character, *unverified* flags, editable packs, freeform + `lookup_rules` fallback |
+| R7 | **Copyrighted WoD PDFs and runtime DB/JSON are committed** to the repository (and git history) | Certain / High | T0.3: untrack + `.gitignore` + owner-run history purge (approved). Back up the PDFs first |
 | R8 | Concurrency races in multiplayer (double submits, interleaved turns) | Medium / High | Per-campaign lock, idempotency keys, optimistic sheet locking, concurrency tests. Single-process deployment assumed (multi-process needs a DB-level lock or Postgres advisory locks) |
 | R9 | Schema evolution breaks old saves | Medium / High | Event upcasters, snapshot versioning, migration fixture tests, pre-migration backups |
 | R10 | Remote exposure with permissive CORS / no auth | Low in Phase 1, Medium in Phase 2 / High | T0.5, loopback-only bind guard in Phase 1; tokens, CORS allow-list and rate limits in M12 before any network exposure |
@@ -1886,17 +2031,21 @@ the compat UI in one browser window.
 | ID | Question | Default if unanswered |
 |---|---|---|
 | Q1 | ~~Deployment target?~~ **Answered:** single computer first; after it works as desired, extend to network play and a Discord bot | Phases 1→2→3 (§1.1) |
-| Q2 | Player identity for Phase 2: are join codes + per-device tokens enough, or do you need accounts/OAuth? (Not needed for Phase 1) | Join codes + tokens |
-| Q3 | Which rulesets first? For WoD: which edition's dice (V20 difficulty + ones cancel vs. CofD 8-again)? Include D&D 5e SRD? | `freeform`, `pbta-generic`, `wod-v20-pool`; SRD in M3 if yes |
-| Q4 | May we remove the committed PDFs and runtime data from the repo, and should git history be rewritten to purge them? | Untrack now; no history rewrite without explicit approval |
+| Q2 | ~~Player identity?~~ **Answered:** real accounts | §11.1 |
+| Q3 | ~~Which rulesets?~~ **Answered:** systems come from the selected PDFs via an import wizard with pop-up checks; WoD is primary | §8.6; VtM Revised first |
+| Q4 | ~~Purge PDFs/data?~~ **Answered:** yes, purge | T0.3 |
 | Q5 | Default LLM and minimum hardware: can we change the default from `llama2:7b` to a tool-capable model? | `llama3.1:8b` for Ollama; hosted optional |
-| Q6 | Loading an old save: fork a new timeline (proposed) or overwrite the current one? | Fork (non-destructive) |
+| Q6 | ~~Load semantics?~~ **Answered:** new timeline | §6.4 |
 | Q7 | Default policy for absent players' characters (background / GM-controlled / ask)? | Background |
 | Q8 | How important is the human-GM **assistant** mode relative to the full AI GM? | Kept working; not expanded until after M9 |
 | Q9 | Secret GM rolls: allowed? Should players be able to verify dice after the campaign (seed reveal)? Where should seeds be stored? | Allowed; verify after campaign end; seed in DB |
 | Q10 | Safety tools beyond lines & veils (X-card, pause button, content warnings per scene)? | Lines, veils, and an X-card button in M10 |
 | Q11 | Frontend: keep vanilla HTML/JS pages or adopt a framework for the play view? | Keep vanilla + SSE through M10 |
 | Q12 | API style: version prefix (`/api/v1`) for new routes? Keep `/gm/step` and `/sessions` long-term? | Root paths like today; keep compat until M10, then deprecate |
-| Q13 | Confirm the `*-BlackDragon.*` files are sync conflicts that can be deleted | Delete in T0.2 after confirmation |
+| Q13 | ~~BlackDragon files?~~ **Answered:** delete. Done | T0.2 |
 | Q14 | Expected table size and session length (typical N, max N, turns per session) — this sets token budgets and spotlight tuning | 1–6 players, ~100 turns/session |
 | Q15 | After Phase 1: network play first, or the Discord bot first? The bot can run on the same single computer without opening network ports | Network (M12) then Discord (M13) |
+| Q16 | On the single computer (Phase 1), should everyone log in with a password, or pick their account from a list (password optional)? | Pick from list; passwords required from Phase 2 |
+| Q17 | WoD scope: only *Vampire: The Masquerade Revised* (the PDFs you have), or also other WoD lines (Werewolf, Mage, …) or editions (V20, V5)? And which non-WoD rulebook should prove the importer (T3.12)? | VtM Revised only; second system chosen later |
+| Q18 | May the Storyteller quote short rule passages from your PDFs to players (e.g. in rules look-ups), or only paraphrase and cite page numbers? | Paraphrase + page citation |
+| Q19 | Should players be able to see the rulebook PDFs/extracted rules, or only the host? | Host only; players see their sheet and page references |

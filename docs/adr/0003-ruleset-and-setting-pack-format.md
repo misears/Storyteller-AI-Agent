@@ -26,16 +26,25 @@ PbtA, …) and any setting theme, and validate PC/NPC sheets against the active 
 3. Formulas use an **AST-allow-listed evaluator**, never `eval`.
 4. A campaign **pins** `ruleset_id@version` and `setting_id@version`. Upgrades are explicit migrations.
 5. Today's WoD engines become **data**: a `wod-city-nights` setting pack (factions, districts,
-   Masquerade meter) + a `wod-v20-pool` ruleset, running on generic `trackers.py` / `turn_order.py`.
+   Masquerade meter) + a `vtm-revised` ruleset, running on generic `trackers.py` / `turn_order.py`.
 6. Existing genre templates become the `freeform` ruleset, so current sheets migrate losslessly.
 7. User-imported packs are **data-only**. Python hooks load only from bundled/trusted directories.
+8. **Packs are normally created from the owner's rulebook PDFs** via the import wizard (plan §8.6):
+   - LLM extraction per section, with confidence and page citations
+   - a few pop-up verification questions
+   - validation (test rolls, a sample character)
+   - saving to local `data/packs/` with provenance
+
+   World of Darkness (VtM Revised) is the primary system and the importer's reference. Imported
+   packs are data-only and local, and are never committed.
 
 ## Consequences
 
 - ✅ New systems/settings need no code in the common case. Sheet UIs can be generated from the schema.
 - ✅ Prompt digests keep system knowledge compact and budgeted.
 - ⚠️ Exotic mechanics need a `custom` hook (trusted code) or a new interpreter kind.
-- ⚠️ Licensing: packs must contain only permitted text (SRD CC-BY-4.0, or self-written summaries).
+- ⚠️ Licensing: bundled packs contain only self-written structure. PDF-derived packs stay local.
+- ⚠️ Extraction quality depends on the PDF and the LLM, so human verification (pop-ups) is required.
 - New dependency: `jsonschema` (PyYAML is already present).
 
 ## Alternatives considered
