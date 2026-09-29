@@ -24,7 +24,7 @@ These are the problems today:
    a narrowed `apply_state_update`, and `request_save`. All state changes happen through tools.
 3. **Fallback for non-tool models:** a JSON-schema-constrained *adjudicate* call, then server
    execution, then a *narrate* call. As a last resort, text parsing accepts only a final fenced
-   `storyteller-actions` block via `json.JSONDecoder.raw_decode`.
+   `storyteller-actions` block (or a legacy `json` fence) via `json.JSONDecoder.raw_decode`.
 4. **`SYSTEM_PROTOCOL`** is a layered template in this order: identity, hard rules, output protocol,
    ruleset digest, setting + safety, mode, turn procedure, style. The static prefix comes first so it
    can be cached, and the budgeted dynamic context follows.
