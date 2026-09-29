@@ -1526,20 +1526,25 @@ at root below. Auth: the player/host token as a bearer token in the `Authorizati
 
 See [ADR-0005](./adr/0005-multiplayer-transport-sse.md).
 
+Every SSE event carries an `id:`. For committed events it is the event `seq`. For transient deltas it
+is `seq.subindex`, where `seq` is the last committed event. Clients send it back as `Last-Event-ID`.
+
 ```text
-id: 1842                     # event seq (deltas use "seq.subindex") → Last-Event-ID resume
+: comment lines start with a colon; the example shows one delta and one committed event
+id: 1842.3
 event: message.delta
 data: {"turn_id":"…","message_id":"…","delta":"The door groans"}
 
+id: 1843
 event: dice.rolled
-data: {"roll": DiceRoll (visibility-filtered), "message_id": "…"}
+data: {"roll": {…DiceRoll, visibility-filtered…}, "message_id": "…"}
 ```
 
 Event types:
 
 | Group | Events |
 |---|---|
-| Turn lifecycle | `turn.queued`, `turn.started` |
+| Turn lifecycle | `turn.queued`, `turn.started`, `turn.completed`, `turn.interrupted`, `turn.failed` |
 | Messages | `message.delta`, `message.final`, `message.retracted` |
 | Dice & sheets | `dice.rolled`, `sheet.updated` |
 | Characters & players | `character.created`, `player.joined`, `player.left` |
@@ -1547,7 +1552,18 @@ Event types:
 | State & saves | `tracker.changed`, `state.updated`, `save.created`, `branch.activated` |
 | Other | `error`, `heartbeat` (every 15 s) |
 
-SSE types are a client-facing view of persisted events. Most map 1:1. `scene.changed` covers `scene.started`/`scene.updated`/`scene.ended`, `state.updated` covers `state.patched`/`turn.*`, and `message.delta`/`message.retracted`/`turn.queued`/`heartbeat` are transient, never persisted. Secret events are delivered only to authorised subscribers. Whisper events go only to their target players and the GM.
+SSE types are a client-facing view of persisted events (§6.3). Most map 1:1, including the `turn.*`
+lifecycle events, which is how clients learn that a turn completed, was interrupted or failed. The
+exceptions:
+
+- `message.final` is the SSE view of a persisted `message.posted`.
+- `scene.changed` covers `scene.started`/`scene.updated`/`scene.ended`.
+- `state.updated` covers `state.patched`.
+- `message.delta`, `message.retracted`, `turn.queued` and `heartbeat` are transient and never
+  persisted.
+
+Secret events are delivered only to authorised subscribers. Whisper events go only to their target
+players and the GM.
 
 On reconnect, a `Last-Event-ID` of the form `seq.subindex` (a transient delta) is truncated to `seq`. The server replays every committed event after `seq`, including the `message.final` that supersedes any partial deltas, and resumes live deltas if that turn is still streaming.
 

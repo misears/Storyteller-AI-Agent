@@ -17,7 +17,9 @@ real time, with per-player visibility (whispers, secret rolls). Today the fronte
    `StreamingResponse`. The SSE `id` is the event seq, so clients resume with `Last-Event-ID`.
 3. A `Broadcaster` filters each event by **visibility** (public / GM-only / specific players)
    per subscriber, and sends heartbeats every 15 s.
-4. Narration tokens stream as `message.delta`. Only `message.final` is part of the permanent log.
+4. Narration tokens stream as transient `message.delta` events. Only the final text is part of the
+   permanent log, as a persisted `message.posted` event, which clients receive as the SSE type
+   `message.final`.
 
 ## Consequences
 
