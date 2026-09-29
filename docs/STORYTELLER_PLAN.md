@@ -103,6 +103,11 @@ What this means for Phase 1:
 | Q16 | Phase 1 login: **pick from a list, with "add"**. A player may have **several characters** and picks which one to play | §11.1 "speaking as" selector: player → character, with "+ Add player" / "+ New character" |
 | Q17 | ~~WoD scope and importer proof?~~ **Answered:** any WoD book, starting with VtM and Demon: The Fallen; several rulesets at once (cross-genre); a free game proves the importer | §8.5, §8.7, T3.12–T3.14 (D&D SRD 5.2) |
 | Q19 | **Anyone** can see the PDFs | §11.6: every member can browse and open the campaign's PDFs and extracted rules |
+| Q18 | The Storyteller **may quote short rule passages** | `lookup_rules` returns short quotes (≤ 2 sentences) with a page citation (§9.1) |
+| Q20 | "VtM v2" means **Revised** | `vtm-revised` stays the default Vampire edition (§8.5) |
+| Q21 | The owner **has a *Demon: The Fallen* PDF**, not yet uploaded; it will be added later | T3.13 builds the structure now and is enriched from the PDF via extend mode when it is uploaded |
+| Q22 | Sessions last **4–6 hours**, and a campaign spans **many sessions** | §10.2 long-session sizing; T7.2/R3 test 400 turns across several sessions |
+| Q23 | Free cloud tiers that may **train on prompts are acceptable** | §9.6: cloud stays opt-in (a settings choice), but no extra warning is required |
 
 ---
 
@@ -881,7 +886,7 @@ Each type has a versioned Pydantic payload model (`models/events.py`) and a redu
   It contains the materialised `GameState`, the `ContextSnapshot` and a checksum. It can be taken
   at any time, even mid-combat or with pending declarations. If a turn is in progress, the request
   waits on the campaign lock, so a save never captures a half-applied turn.
-- **Automatic snapshots** are taken every 100 events, at scene end and at session end (kind
+- **Automatic snapshots** are taken every 100 events, every 30 minutes of play, at scene end and at session end (kind
   `auto`/`scene_end`/`session_end`). They make resume O(events since snapshot).
 - **Loading an earlier save** never destroys history. It **forks a new branch** from
   `save.event_seq` (`branch.forked`) and sets `active_branch_id`. The old timeline stays browsable
@@ -1156,11 +1161,11 @@ uploading their rulebook PDFs through the import wizard (§8.6). Further WoD lin
 Wraith, Changeling, Hunter, Mummy, …) are added the same way. The wizard detects the shared
 Storyteller core and pre-fills the dice rules, so these imports need fewer questions.
 
-**Edition note (Q20).** The owner asked to start with "Vampire: The Masquerade v2". The PDFs in the
-repository are *Revised* (3rd edition). 2nd edition, Revised and V20 share the same dice core, so
-the same `pool_successes` interpreter serves all three. They differ in trait lists, disciplines,
-clans and some numbers (for example generation limits and freebie costs). The pack pins the edition
-of the uploaded PDFs, and Q20 asks which one to treat as the default.
+**Edition (Q20, answered: Revised).** The default Vampire edition is *Revised*, matching the owner's
+PDFs. 2nd edition and V20 share the same dice core (the same `pool_successes` interpreter) but
+differ in trait lists, disciplines, clans and some numbers. They can be added later as separate
+packs through the import wizard. The owner's *Demon: The Fallen* PDF (Q21) will be uploaded later.
+Until then `demon-the-fallen` holds structure only.
 
 **Importer proof of concept (Q17): the free D&D System Reference Document 5.2.** It is a free PDF
 from Wizards of the Coast under **CC BY 4.0**, so it is easy to obtain. Its mechanics differ from WoD
@@ -1313,7 +1318,7 @@ from that result.
 | `adjust_tracker` | Tick a clock or move a meter (factions, Masquerade, doom…) | `tracker_id`, `delta`, `reason` | `tracker.changed` |
 | `record_fact` | Store a durable memory (NPC attitude, secret learned, promise made) | `subject_kind`, `subject_id?`, `text`, `importance 1-5`, `visibility` | `fact.recorded` |
 | `recall_memory` | Retrieve facts/summaries about something not in context | `query`, `subject_id?`, `limit` | — |
-| `lookup_rules` | Search ruleset digest + uploaded rulebooks (existing document store) | `query` | — |
+| `lookup_rules` | Search ruleset digest + uploaded rulebooks (existing document store); returns short quotes (≤ 2 sentences) with page citations (Q18) | `query` | — |
 | `whisper` | Send a private message to specific players | `player_ids[]`, `content` | `message.posted(visibility=players)` |
 | `apply_state_update` | **Narrowed** legacy tool: JSON merge-patch restricted to `flags.*`, `known_locations.*`, `arc.open_threads` | `patch` | `state.patched` |
 | `request_save` | Create a named save at a dramatic moment (the LLM can never *load*) | `name` | `save.created` |
@@ -1483,8 +1488,8 @@ token on the owner's laptop.
 **Optional free cloud.** A generic **OpenAI-compatible provider** (base URL + API key) covers
 services with free tiers of open models or free API quotas, for example Groq, OpenRouter's free
 models, and Google's Gemini API free tier. These services have rate limits and their terms can
-change. Some free tiers may use prompts for training, and prompts include chat text and short
-rules excerpts. So cloud use is opt-in and labelled in the settings. The app never falls back to a
+change. Some free tiers may use prompts for training; the owner accepts this (Q23). Cloud use is
+still an explicit choice in the settings, because it needs internet access and an API key. The app never falls back to a
 paid model on its own.
 
 **Model switcher (settings).** The existing `/settings` router and runtime settings grow into
@@ -1534,6 +1539,12 @@ the default is 8k (§9.6), which halves layers 7–8.
 - **Session:** on session end, it writes the session recap (shown to players at the next session
   start and stored on `PlaySession.recap`).
 - **Campaign:** after each session, the arc summary is refreshed from session recaps plus the bible.
+- **Long sessions (Q22: 4–6 hours, many sessions per campaign).** Expect roughly 150–300 turns per
+  session. Rolling summaries keep the prompt flat regardless of length. The session summary is
+  itself re-summarised when it exceeds its layer budget, so a 6-hour session never overflows. Scene
+  summaries and `memory_facts` carry detail across sessions, and the campaign arc summary carries
+  the plot. Every turn is already durable, and automatic snapshots (§6.4) also run every 30
+  minutes, so resuming late in a long session stays fast.
 - Summarisation runs **after** the turn commits (background task under the same campaign lock
   queue). It never blocks the player's response. If it fails, the next turn simply trims harder.
 - Summaries are events, so resume rebuilds the *identical* context (§6.5).
@@ -2060,7 +2071,7 @@ recommended order is M12 → M13 (Q15).
 | ID | Task | Acceptance criteria |
 |---|---|---|
 | T7.1 | `ContextBuilder` with layered budgets + `LLMProfile` | Never exceeds budget (property test over random histories) |
-| T7.2 | Rolling / scene / session / campaign summaries as events (background, post-commit) | 200-turn scripted game stays within budget. Summaries cover all seqs with no gaps |
+| T7.2 | Rolling / scene / session / campaign summaries as events (background, post-commit) | 400-turn scripted game over 3 sessions stays within budget (Q22). Summaries cover all seqs with no gaps |
 | T7.3 | `memory_facts` + FTS5 retrieval + `record_fact`/`recall_memory` | Present-NPC facts always included. Secret facts are never in player APIs |
 | T7.4 | Token usage tracking + soft caps | Usage visible per turn |
 
@@ -2141,7 +2152,7 @@ the compat UI in one browser window.
 |---|---|---|---|
 | R1 | Small local models (8 GB VRAM → 7–8B) have weaker tool calling and instruction following; `llama2:7b` has no tool calling | High / High | New tool-capable default picked by benchmark (T5.8), `num_ctx` set explicitly, JSON-mode adjudicate→narrate fallback (§9.3), capability probe, optional free cloud endpoint (§9.6) |
 | R2 | LLM fabricates dice results or state changes in prose | Medium / High | Protocol rules, fabricated-roll post-validator, state only via tools, dice-linked messages visible in UI |
-| R3 | Context overflow / quality drift in long campaigns | High / Medium | Layered budgets, hierarchical summaries, memory retrieval, 200-turn budget test |
+| R3 | Context overflow / quality drift in long campaigns | High / Medium | Layered budgets, hierarchical summaries, memory retrieval, 400-turn / multi-session budget test (Q22) |
 | R4 | Cost/latency with hosted models (tool rounds × players) | Medium / Medium | Bounded loop, prompt caching, declaration batching, cheaper summariser, usage caps |
 | R5 | Prompt injection via player text or uploaded lore | Medium / Medium | Input tagging, server-side authority, secret filtering, lore treated as quoted reference |
 | R6 | Ruleset licensing (WoD, D&D and most systems are proprietary) | Medium / High | Rulebook PDFs and imported packs stay local and git-ignored, and are never bundled. The bundled `vtm-revised` holds only self-written structure. Exports exclude PDFs and long rule text |
@@ -2154,7 +2165,7 @@ the compat UI in one browser window.
 | R13 | Phase-1 shortcuts (no auth, single window) leak into the design and make Phase 2/3 costly | Medium / Medium | Players, memberships, authority checks and SSE are built in Phase 1. Only *authentication* is stubbed, behind `get_current_actor()` |
 | R12 | Untrusted pack code | Low / High | Data-only imported packs. Hooks only from trusted dirs |
 | R15 | Cross-genre rules conflicts (different families, line-specific powers) | Medium / Medium | Same-family sharing first (VtM + Demon), outcome-ladder bridge confirmed by the owner, `lookup_rules` for line-specific cases (§8.7) |
-| R16 | Free cloud tiers change terms, rate-limit, or train on prompts | Medium / Low | Local default. Cloud is opt-in and labelled; never an automatic fallback to paid models |
+| R16 | Free cloud tiers change terms or rate-limit (training on prompts is accepted, Q23) | Medium / Low | Local default. Cloud is opt-in; never an automatic fallback to paid models. Rate-limit errors fall back to the local model |
 
 ---
 
@@ -2179,9 +2190,9 @@ the compat UI in one browser window.
 | Q15 | ~~Network or Discord first?~~ **Answered:** network, then Discord | M12 → M13 |
 | Q16 | ~~Phase 1 login?~~ **Answered:** pick from a list with "add"; a player may have several characters and selects one | §11.1 |
 | Q17 | WoD scope: only *Vampire: The Masquerade Revised* (the PDFs you have), or also other WoD lines (Werewolf, Mage, …) or editions (V20, V5)? And which non-WoD rulebook should prove the importer (T3.12)? | VtM Revised only; second system chosen later |
-| Q18 | May the Storyteller quote short rule passages from your PDFs to players (e.g. in rules look-ups), or only paraphrase and cite page numbers? Everyone can open the PDFs now (Q19), so short quotes add little risk | Short quotes (≤ 2 sentences) + page citation |
+| Q18 | ~~Quote rule passages?~~ **Answered:** yes, short quotes | §9.1 `lookup_rules` |
 | Q19 | ~~Who can see the PDFs?~~ **Answered:** anyone | §11.6 |
-| Q20 | "Vampire: The Masquerade v2": do you mean **2nd Edition** (1992), **V20** (20th Anniversary), or the **Revised** books you already uploaded? The dice core is the same; trait lists and some numbers differ | Revised (matches your PDFs); 2nd Ed/V20 via import later |
-| Q21 | Do you have a *Demon: The Fallen* PDF to upload? It is not in the repository | Build the `demon-the-fallen` structure now; enrich when the PDF arrives |
-| Q22 | Typical session length (turns or hours)? This tunes summaries and token budgets | ~100 turns / 3–4 hours |
-| Q23 | Free cloud models: acceptable if the provider's free tier may use your prompts (chat text, short rule excerpts) for training? | Local only unless you enable a cloud profile |
+| Q20 | ~~Which VtM edition?~~ **Answered:** Revised | §8.5 |
+| Q21 | ~~Demon PDF?~~ **Answered:** owned; to be uploaded later | T3.13 |
+| Q22 | ~~Session length?~~ **Answered:** 4–6 hours, many sessions per campaign | §10.2, T7.2 |
+| Q23 | ~~Cloud training on prompts?~~ **Answered:** acceptable | §9.6 |
