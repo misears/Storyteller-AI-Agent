@@ -26,7 +26,9 @@
 7. [Dice engine (server-authoritative)](#7-dice-engine-server-authoritative)
 8. [Ruleset plugin & setting pack formats](#8-ruleset-plugin--setting-pack-formats)
    - [8.6 PDF system import wizard](#86-pdf-system-import-wizard-owner-requirement-q3)
+   - [8.7 Cross-genre play (several rulesets in one campaign)](#87-cross-genre-play-several-rulesets-in-one-campaign-q17)
 9. [LLM integration: tool set, SYSTEM_PROTOCOL, state updates](#9-llm-integration-tool-set-system_protocol-state-updates)
+   - [9.6 Models for an 8 GB laptop GPU and the model switcher](#96-models-for-an-8-gb-laptop-gpu-and-the-model-switcher-q5)
 10. [LLM context strategy](#10-llm-context-strategy)
 11. [Multi-player handling (1..N)](#11-multi-player-handling-1n)
 12. [Campaign generation flow (session zero → play)](#12-campaign-generation-flow-session-zero--play)
@@ -95,6 +97,12 @@ What this means for Phase 1:
 | Q4 | Committed PDFs and runtime data **may be purged** from the repo and its history | T0.3 (with the backup warning there) |
 | Q6 | Loading an old save starts a **new timeline** | §6.4 fork semantics (unchanged, now confirmed) |
 | Q13 | **Delete** all `*-BlackDragon*` files | Done in this PR (T0.2). All 7 were older copies or exact duplicates of the originals |
+| Q5 | Must run on a **laptop with an NVIDIA RTX 4070 (8 GB VRAM)**. Free only; open-source preferred; free cloud tiers acceptable. **Switching models must be a setting** | §9.6: local Ollama default with 7–8B tool-capable models, optional free cloud endpoints, per-role model switcher (T5.7, T5.8) |
+| Q14 | **At most 10 players** to begin with | §11.2: `TableConfig.max_players = 10`; budgets and tests sized for 10 |
+| Q15 | After Phase 1: **network first**, Discord after that | M12 then M13 (unchanged, now confirmed) |
+| Q16 | Phase 1 login: **pick from a list, with "add"**. A player may have **several characters** and picks which one to play | §11.1 "speaking as" selector: player → character, with "+ Add player" / "+ New character" |
+| Q17 | ~~WoD scope and importer proof?~~ **Answered:** any WoD book, starting with VtM and Demon: The Fallen; several rulesets at once (cross-genre); a free game proves the importer | §8.5, §8.7, T3.12–T3.14 (D&D SRD 5.2) |
+| Q19 | **Anyone** can see the PDFs | §11.6: every member can browse and open the campaign's PDFs and extracted rules |
 
 ---
 
@@ -371,10 +379,12 @@ class Campaign(BaseModel):
     title: str
     status: Literal["session_zero", "active", "paused", "completed", "archived"] = "session_zero"
     mode: GMMode = GMMode.GROUP
-    ruleset_id: str
+    ruleset_id: str                  # primary ruleset (default for new characters)
     ruleset_version: str             # pinned; upgrades are explicit migrations
+    extra_rulesets: list["PackRef"] = []   # cross-genre play (§8.7), e.g. demon-the-fallen@1.0
     setting_pack_id: str
     setting_pack_version: str
+    extra_setting_packs: list["PackRef"] = []   # layered lore, merged in order (§8.7)
     source_document_ids: list[str] = []   # PDFs selected for this campaign (rules + lore); §8.6
     table_config: "TableConfig"
     bible: "CampaignBible | None" = None   # generated in session zero (§12)
@@ -385,7 +395,13 @@ class Campaign(BaseModel):
     updated_at: datetime
 
 
+class PackRef(BaseModel):
+    id: str
+    version: str
+
+
 class TableConfig(BaseModel):
+    max_players: int = 10                 # owner decision Q14; host can raise it later
     tone: list[str] = []                  # e.g. ["grim", "political"]
     lines: list[str] = []                 # hard limits (never appear)
     veils: list[str] = []                 # fade-to-black topics
@@ -420,7 +436,8 @@ class Membership(BaseModel):
     status: Literal["invited", "active", "away", "left"] = "active"
     joined_at: datetime
     left_at: datetime | None = None
-    character_ids: list[Id] = []
+    character_ids: list[Id] = []            # a player may own several characters (Q16)
+    active_character_id: Id | None = None   # pre-selected in the "speaking as" picker
 
 
 class PlaySession(BaseModel):
@@ -449,7 +466,7 @@ class Character(BaseModel):
     public_description: str = ""
     gm_notes: str = ""                         # secret — never broadcast to players
     faction_ids: list[str] = []
-    sheet_id: Id
+    sheet_id: Id                              # the sheet's ruleset may differ per character (§8.7)
     created_in_turn_id: Id | None = None
 
 
@@ -536,6 +553,7 @@ class DiceRoll(BaseModel):
     chat_message_id: Id                        # the system message announcing the roll
     roller: Actor                              # who asked for the roll (player or ai_gm tool call)
     character_id: Id | None                    # whose dice
+    ruleset_id: str                            # roller's ruleset; can differ per character (§8.7)
     check_id: str | None = None                # ruleset check, e.g. "skill_check", "attack"
     expression: str                            # canonical, e.g. "1d20+5", "7d10>=8!10"
     dice: list[DieResult]
@@ -740,6 +758,8 @@ class Ruleset(BaseModel):
     npc_tiers: list[NpcTier]
     sheet_schema: dict[str, Any]               # JSON Schema 2020-12 (loaded from sheet.schema.json)
     prompt_digest: str                         # ≤ ~800 tokens, injected into SYSTEM_PROTOCOL
+    family: str | None = None                  # shared-core family, e.g. "storyteller-classic" (§8.7)
+    outcome_ladder: dict[str, str] = {}        # native result -> DiceRoll.outcome, for cross-family rolls (§8.7)
     origin: Literal["bundled", "pdf_import", "manual"] = "bundled"
     source_documents: list["SourceRef"] = []   # PDFs this pack was derived from (§8.6)
     field_citations: dict[str, str] = {}       # JSON pointer -> "doc_id#page" for rules lookup
@@ -1128,10 +1148,26 @@ behaviour: tick, threshold descriptions and faction-move suggestions.
 | `freeform` ruleset | Replaces today's genre templates (fantasy/sci-fi/…) so existing sheets migrate losslessly; simple `1d20`/`2d6` checks |
 | `pbta-generic` ruleset | Smallest complete mechanic; great for tests |
 | `vtm-revised` ruleset (**primary**) | Vampire: The Masquerade Revised, matching the owner's PDFs. It is the first system and the reference for the PDF importer. The bundled file holds mechanics structure only (dice rules, trait names, sheet schema) written for this project. Rule *text* comes from the owner's own PDFs at runtime (R6/R7) |
+| `demon-the-fallen` ruleset (**second WoD line**, Q17) | *Demon: The Fallen* uses the same Revised-era Storyteller core (d10 pools vs difficulty, ones cancel, botches), so it shares the `storyteller-classic` family with `vtm-revised`. Faith, Torment, Lores and apocalyptic form are Demon-specific traits. Self-written structure only, like `vtm-revised`. Rule text comes from the owner's Demon PDF (Q21) |
 | `wod-city-nights` setting | Today's `chronicle_starter` / `secrecy_tracker` content as data. Enriched from the Camarilla/Anarchs/Sabbat guides via the importer |
 
 Other systems (D&D, Call of Cthulhu, Shadowrun, …) are **not** hand-bundled. They are added by
-uploading their rulebook PDFs through the import wizard (§8.6).
+uploading their rulebook PDFs through the import wizard (§8.6). Further WoD lines (Werewolf, Mage,
+Wraith, Changeling, Hunter, Mummy, …) are added the same way. The wizard detects the shared
+Storyteller core and pre-fills the dice rules, so these imports need fewer questions.
+
+**Edition note (Q20).** The owner asked to start with "Vampire: The Masquerade v2". The PDFs in the
+repository are *Revised* (3rd edition). 2nd edition, Revised and V20 share the same dice core, so
+the same `pool_successes` interpreter serves all three. They differ in trait lists, disciplines,
+clans and some numbers (for example generation limits and freebie costs). The pack pins the edition
+of the uploaded PDFs, and Q20 asks which one to treat as the default.
+
+**Importer proof of concept (Q17): the free D&D System Reference Document 5.2.** It is a free PDF
+from Wizards of the Coast under **CC BY 4.0**, so it is easy to obtain. Its mechanics differ from WoD
+(d20 + modifier vs DC, hit points, classes, levels), which makes it a real test of the importer.
+Its licence also allows a short excerpt, with the required attribution, to be committed as a CI
+test fixture, which the WoD books do not. Fallback if SRD 5.2 proves too large for a first test:
+*Risus* (a free 4-page rules-light game).
 
 ### 8.6 PDF system import wizard (owner requirement, Q3)
 
@@ -1216,6 +1252,38 @@ ruleset pack) and **which PDFs apply** (`Campaign.source_document_ids`). In that
 and are never bundled or committed. Campaign export includes the derived pack (structure and short
 field values) but **not** the PDFs or long rule text. The receiving computer must hold its own
 copy of the books to use `lookup_rules` (R6).
+
+### 8.7 Cross-genre play (several rulesets in one campaign, Q17)
+
+The owner wants chronicles that mix lines, for example vampires and demons in the same city.
+A campaign therefore has one **primary** ruleset plus any number of **extra rulesets**
+(`Campaign.extra_rulesets`):
+
+- **Each character carries its own ruleset.** `CharacterSheet.ruleset_id` already exists, so a
+  Vampire PC and a Demon PC validate against different sheet schemas in the same campaign. Chargen
+  asks "which game line?" when more than one is active. NPCs are created the same way
+  (`create_npc(ruleset_id=…)`).
+- **Rolls use the roller's ruleset.** `roll_dice(character_id=…)` looks up that character's sheet and
+  uses its ruleset's interpreter, trait names and difficulty rules. The dice log records
+  `ruleset_id` on every roll.
+- **Same family = direct comparison.** Rulesets that declare the same `family` (VtM and Demon are
+  both `storyteller-classic`) share the core: the same attribute and ability names, Willpower,
+  difficulties and success counting. Opposed rolls compare successes directly, and effects that
+  target shared traits (Willpower, Health levels, Attributes) work across lines.
+- **Different families = outcome ladder.** For example a d20 character opposing a d10-pool character.
+  Each side rolls in its own system. Each pack's `outcome_ladder` maps its native result onto the
+  common `DiceRoll.outcome` ladder (`botch` < `critical_failure` < `failure` < `partial` < `success`
+  < `critical_success`), and the two outcomes are compared, with ties going to the defender. When a second family is added to a campaign, the wizard asks the
+  owner to confirm the mapping. The mapping is editable.
+- **Prompt budget.** The protocol includes the digests of the rulesets **in the current scene**
+  only (§9.2 layer 4). With several, the ruleset budget in §10.1 is split between them, with the
+  primary ruleset first.
+- **Settings layer too.** `extra_setting_packs` are merged in order on top of the primary setting
+  (for example `wod-city-nights` + Demon lore from the owner's PDFs). Trackers and factions keep their
+  pack-qualified ids, so there are no collisions.
+- **Line-specific rules** that the shared core cannot express (for example a Demon's revealed form
+  frightening a vampire) go to the Storyteller as rules look-ups over the selected PDFs
+  (`lookup_rules`), not into code.
 
 ---
 
@@ -1381,6 +1449,56 @@ Tool rounds are not streamed as text; clients get `dice.rolled` / `sheet.updated
 commits. If post-validation rejects the narration (fabricated roll, leaked secret), clients get
 `message.retracted` for the streamed draft followed by the corrected `message.final`.
 
+### 9.6 Models for an 8 GB laptop GPU and the model switcher (Q5)
+
+**Target hardware:** a laptop with an NVIDIA RTX 4070 (8 GB VRAM). **Constraints:** no extra cost;
+open-source preferred; a free cloud tier is acceptable.
+
+**Default: local Ollama** (already supported by `OllamaProvider`). Models in the 7–8B range at
+4-bit quantisation (`Q4_K_M`, about 4.5–5.5 GB) fit in 8 GB of VRAM, with room left for an 8k–16k
+context. These candidates support tool calling in Ollama:
+
+| Role | First choice | Alternatives | Notes |
+|---|---|---|---|
+| Storyteller (GM turns, tool calls) | `qwen2.5:7b` (Apache-2.0) | `llama3.1:8b`, `qwen3:8b` | Needs reliable tool calling and JSON. T5.8 benchmarks the candidates on this laptop and picks the winner |
+| PDF importer (extraction, not interactive) | same model | `mistral-nemo:12b` (≈7 GB, tight) or a larger model partly on CPU | Speed matters less here, and the job is resumable, so a bigger, slower model is acceptable |
+| Summaries | same model | a 3–4B model (e.g. `qwen2.5:3b`) | Runs in the background after the turn |
+| Embeddings (later, §10.3) | `nomic-embed-text` | — | Small; can run on the CPU |
+
+The model list will be outdated in a few months. The **benchmark task (T5.8)** is the real
+decision mechanism: a fixed script of turns measures tool-call validity, fabricated rolls,
+JSON validity and tokens per second. Its target is ≥ 15 tokens/s and < 10 s to the first narration
+token on the owner's laptop.
+
+**Local-model gotchas the plan handles:**
+
+- Ollama's default context window (`num_ctx`) is small. The provider must set `num_ctx` from the
+  `LLMProfile` (default 8192; 16384 if the benchmark shows it still fits in VRAM, helped by
+  flash attention and a q8 KV cache).
+- With an 8k window, the §10.1 budgets scale down: the verbatim window and retrieval shrink first.
+  The fixed layers (protocol and ruleset digests) are kept.
+- `llama2:7b` (today's default) is replaced as the default. It stays selectable and uses the
+  non-tool fallback (§9.3).
+
+**Optional free cloud.** A generic **OpenAI-compatible provider** (base URL + API key) covers
+services with free tiers of open models or free API quotas, for example Groq, OpenRouter's free
+models, and Google's Gemini API free tier. These services have rate limits and their terms can
+change. Some free tiers may use prompts for training, and prompts include chat text and short
+rules excerpts. So cloud use is opt-in and labelled in the settings. The app never falls back to a
+paid model on its own.
+
+**Model switcher (settings).** The existing `/settings` router and runtime settings grow into
+per-role **LLM profiles**:
+
+- Each role (Storyteller, importer, summariser, embeddings) gets its own provider and model.
+- The model dropdown is filled from Ollama `/api/tags` (installed models) or the provider's model
+  list. It also offers "Pull model…" for Ollama.
+- A **"Test model"** button runs a short tool-call probe and fills in the capability flags
+  (`supports_tools`, `supports_json_schema`, context window).
+- Switching is allowed at any time, even mid-campaign. The change is recorded as an
+  `llm_profile_changed` event. Resume replays events, not LLM calls, so saves are unaffected.
+- API keys for cloud providers are stored locally and never logged or exported (§14).
+
 ---
 
 ## 10. LLM context strategy
@@ -1391,7 +1509,8 @@ See [ADR-0004](./adr/0004-llm-tool-loop-and-context-strategy.md).
 
 Budgets are expressed as **fractions** of the model's usable input window
 (`context_window − max_output − safety margin`). The numbers below are for a 16k-token window.
-Larger windows scale up the verbatim window and retrieval first.
+Larger windows scale up the verbatim window and retrieval first. On the owner's 8 GB laptop GPU
+the default is 8k (§9.6), which halves layers 7–8.
 
 | # | Layer | Source | Default (16k) | Trimming policy |
 |---|---|---|---|---|
@@ -1467,8 +1586,11 @@ in **Phase 1**. How strictly they are enforced depends on the phase (Q16):
 
 **Phase 1 (single computer):** there is no network login. The server runs on loopback only, and
 `get_current_actor()` resolves every request to the **local host**, who has full table authority.
-Players are added in the lobby by name ("Add player at this computer"). Every input carries the
-`player_id`/`character_id` chosen in the play view's **"speaking as"** selector. Authority checks
+Login is **pick from a list with an "add" option** (owner decision Q16): the lobby lists the
+accounts/players on this computer, with "+ Add player". Each player can own **several characters**
+in a campaign (`Membership.character_ids`). The play view's **"speaking as"** selector is two
+steps, player → character, and includes "+ New character". It remembers the last choice
+(`Membership.active_character_id`). Every input carries the chosen `player_id`/`character_id`. Authority checks
 still run against that chosen player, so data and rules behave the same in every phase. Only
 authentication is absent. Secret information (whispers, GM-only rolls) goes to a "GM view" window or
 behind a "reveal" click, since everyone shares the screen.
@@ -1491,8 +1613,9 @@ behind a "reveal" click, since everyone shares the screen.
 | Active players | Default mode | Behaviour |
 |---|---|---|
 | 1 | `solo` | Every input resolves immediately; spotlight irrelevant; the GM may run companion NPCs |
-| 2..8 | `group` | Turn policy applies (below); spotlight balancing on |
-| > 8 | `group` + **party split** suggestion | The GM is prompted to split scenes. Only the characters present in the *current* scene enter the prompt; other groups wait or run in parallel scenes (M8 stretch goal) |
+| 2..6 | `group` | Turn policy applies (below); spotlight balancing on |
+| 7..10 | `group` + **party split** suggestion | The GM is prompted to split scenes. Only the characters present in the *current* scene enter the prompt; other groups wait or run in parallel scenes (M8 stretch goal) |
+| > 10 | refused | `TableConfig.max_players` (default 10, owner decision Q14). The host may raise it later |
 | any + human GM | `assistant` | AI proposes narration/rolls privately to the human GM, who approves/edits before publishing |
 
 The mode switches automatically when members join or leave. The host can pin it.
@@ -1551,6 +1674,8 @@ The mode switches automatically when members join or leave. The host can pin it.
 | Create/load saves, export | ❌ (create: config) | ❌ | ✅ | ✅ | create only | ❌ |
 | Manage members / mode / turn policy | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | Revert a sheet version | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| View rulebook PDFs and extracted rules (Q19) | ✅ | ✅ | ✅ | ✅ | ✅ (`lookup_rules`) | ✅ |
+| Upload PDFs / run the import wizard | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 
 ---
 
@@ -1558,7 +1683,7 @@ The mode switches automatically when members join or leave. The host can pin it.
 
 ```mermaid
 flowchart TD
-    A["Create campaign<br/>title, host player"] --> B["Pick game system and the PDFs that apply<br/>GET /rulesets, /documents"]
+    A["Create campaign<br/>title, host player"] --> B["Pick game system(s) and the PDFs that apply<br/>GET /rulesets, /documents"]
     B --> C["Pick compatible setting pack<br/>GET /themes?ruleset=…"]
     C --> D["Table config<br/>tone, lines and veils, mode, turn policy, dice visibility"]
     D --> E["Generate Campaign Bible<br/>(LLM, JSON-schema output)"]
@@ -1706,7 +1831,8 @@ name the speaking player). From Phase 2 (M12), the player/host token goes as a b
 | `POST /gm/step {session_id, mode, user_message}` | Kept. Resolves to a campaign via a `legacy_session_id` mapping, calls `TurnService` with `wait=true`, and returns `{narration, state}` in the old shape |
 | `/sessions/*` | Kept as a facade over campaigns until `setup.html`/`play.html` are migrated (M10), then deprecated with a `Deprecation` header |
 | `/character-sheets/*` | Kept for the character tracker. It reads/writes through the new sheet service after the M4 migration |
-| `/documents/*`, `/settings/*` | Unchanged |
+| `/documents/*` | Unchanged (readable by every member, Q19) |
+| `/settings/*` | Extended with per-role LLM profiles, model list/pull and "Test model" (§9.6, T5.7) |
 
 ### 13.7 Streaming protocol (SSE)
 
@@ -1891,7 +2017,9 @@ recommended order is M12 → M13 (Q15).
 | T3.9 | Wizard UI: pop-up questions (≤ 10), per-field edit, skip → *unverified* flag | The owner completes the VtM import in ≤ 10 questions |
 | T3.10 | Validation step (test rolls, sample character, formula compile) + save to `data/packs` with provenance | An invalid draft cannot be saved. The saved pack loads in the registry |
 | T3.11 | Extend mode: a supplement PDF → diff → new pack version | *Guide to the Sabbat* adds factions to `wod-city-nights` as v1.1. Existing campaigns stay on v1.0 |
-| T3.12 | Second-system proof: import a non-WoD rulebook the owner provides (Q17) | A playable campaign using only the imported pack |
+| T3.12 | Second-system proof: import the free **D&D SRD 5.2** (CC BY 4.0) (Q17) | A playable campaign using only the imported pack. A short attributed SRD excerpt is the CI fixture |
+| T3.13 | `demon-the-fallen` ruleset (self-written structure, `storyteller-classic` family); enrich from the owner's Demon PDF via extend mode | A Demon character validates. Faith/Torment trackers work. Rolls use the shared interpreter |
+| T3.14 | Cross-genre campaigns (§8.7): `extra_rulesets`, per-character ruleset in chargen, `roll_dice` by the roller's ruleset, same-family opposed rolls, outcome-ladder bridge, per-scene digests | A Vampire PC and a Demon PC in one scene: both sheets validate, an opposed roll resolves, and the prompt holds only both digests within budget |
 
 ### M4 — Character sheets v2 (PCs & NPCs)
 
@@ -1913,6 +2041,8 @@ recommended order is M12 → M13 (Q15).
 | T5.4 | `gm_modes/protocol.py` template with ruleset/setting/mode injection | Golden prompt files per pack × mode |
 | T5.5 | `TurnService` (lock, UoW, bounded tool loop, post-validation, fabricated-roll guard) | Scripted turn produces the correct events. A fabricated roll triggers a corrective re-prompt |
 | T5.6 | Fenced-block fallback parser + JSON-mode adjudicate/narrate path for non-tool models | Parser table tests. Mock non-tool provider still yields logged dice |
+| T5.7 | Model switcher (§9.6): per-role LLM profiles in settings, Ollama model list + pull, "Test model" capability probe, `num_ctx` from the profile, generic OpenAI-compatible provider (base URL + key), `llm_profile_changed` event | Switching models mid-campaign works and survives save/resume. Keys never appear in logs or exports |
+| T5.8 | Local model benchmark script on the owner's RTX 4070 8 GB laptop (§9.6) | Report with tool-call validity, fabricated rolls, tokens/s and time to first token per candidate. The winner becomes the default |
 | T5.7 | `/campaigns/{id}/turns` (+ `?wait=true`); `/gm/step` compat shim | `play.html` works through the shim |
 
 ### M6 — Save & resume
@@ -1938,9 +2068,9 @@ recommended order is M12 → M13 (Q15).
 
 | ID | Task | Acceptance criteria |
 |---|---|---|
-| T8.1 | Accounts (create/switch locally, password optional in Phase 1), local players, memberships, "speaking as" actor resolution, authority matrix (no tokens yet) | Every authority-matrix cell tested using the chosen speaking player |
+| T8.1 | Accounts (pick from a list + add, no password in Phase 1), local players, memberships, several characters per player, two-step "speaking as" selector (player → character), authority matrix (no tokens yet) | Every authority-matrix cell tested using the chosen speaking player |
 | T8.2 | `Broadcaster` + SSE `/stream` with visibility filtering + `Last-Event-ID` | A player window and a GM window on the same machine each get correctly filtered events. Reload replays missed events |
-| T8.3 | Turn policies: freeform batching, round-robin, initiative, timeouts | Concurrency test: 5 players, no lost/duplicated inputs |
+| T8.3 | Turn policies: freeform batching, round-robin, initiative, timeouts; `max_players` cap | Concurrency test: 10 players, no lost/duplicated inputs. An 11th join is refused |
 | T8.4 | Spotlight stats + debt injection + host view | Stats update. Prompt contains the debtors |
 | T8.5 | Join/leave mid-campaign; absent-PC policies; mode auto-switch | Scripted scenarios for each policy |
 
@@ -2009,7 +2139,7 @@ the compat UI in one browser window.
 
 | ID | Risk | Likelihood / impact | Mitigation |
 |---|---|---|---|
-| R1 | Default local model (`llama2:7b`) has no tool calling and weak instruction following | High / High | JSON-mode adjudicate→narrate fallback (§9.3). Recommend `llama3.1:8b`, `qwen2.5:7b+` or a hosted model. Capability flags in `LLMProfile` |
+| R1 | Small local models (8 GB VRAM → 7–8B) have weaker tool calling and instruction following; `llama2:7b` has no tool calling | High / High | New tool-capable default picked by benchmark (T5.8), `num_ctx` set explicitly, JSON-mode adjudicate→narrate fallback (§9.3), capability probe, optional free cloud endpoint (§9.6) |
 | R2 | LLM fabricates dice results or state changes in prose | Medium / High | Protocol rules, fabricated-roll post-validator, state only via tools, dice-linked messages visible in UI |
 | R3 | Context overflow / quality drift in long campaigns | High / Medium | Layered budgets, hierarchical summaries, memory retrieval, 200-turn budget test |
 | R4 | Cost/latency with hosted models (tool rounds × players) | Medium / Medium | Bounded loop, prompt caching, declaration batching, cheaper summariser, usage caps |
@@ -2023,6 +2153,8 @@ the compat UI in one browser window.
 | R11 | Scope creep (network/Discord pulled in early, voice, maps, VTT features) | High / Medium | Phases are gated by the T11.5 sign-off. Network and Discord work waits for M12/M13. Adapter-neutral `TurnService` and SSE keep that door open without early work |
 | R13 | Phase-1 shortcuts (no auth, single window) leak into the design and make Phase 2/3 costly | Medium / Medium | Players, memberships, authority checks and SSE are built in Phase 1. Only *authentication* is stubbed, behind `get_current_actor()` |
 | R12 | Untrusted pack code | Low / High | Data-only imported packs. Hooks only from trusted dirs |
+| R15 | Cross-genre rules conflicts (different families, line-specific powers) | Medium / Medium | Same-family sharing first (VtM + Demon), outcome-ladder bridge confirmed by the owner, `lookup_rules` for line-specific cases (§8.7) |
+| R16 | Free cloud tiers change terms, rate-limit, or train on prompts | Medium / Low | Local default. Cloud is opt-in and labelled; never an automatic fallback to paid models |
 
 ---
 
@@ -2034,7 +2166,7 @@ the compat UI in one browser window.
 | Q2 | ~~Player identity?~~ **Answered:** real accounts | §11.1 |
 | Q3 | ~~Which rulesets?~~ **Answered:** systems come from the selected PDFs via an import wizard with pop-up checks; WoD is primary | §8.6; VtM Revised first |
 | Q4 | ~~Purge PDFs/data?~~ **Answered:** yes, purge | T0.3 |
-| Q5 | Default LLM and minimum hardware: can we change the default from `llama2:7b` to a tool-capable model? | `llama3.1:8b` for Ollama; hosted optional |
+| Q5 | ~~Default LLM and hardware?~~ **Answered:** RTX 4070 laptop (8 GB), free and preferably open source, free cloud acceptable, model switch in settings | §9.6, T5.7–T5.8 |
 | Q6 | ~~Load semantics?~~ **Answered:** new timeline | §6.4 |
 | Q7 | Default policy for absent players' characters (background / GM-controlled / ask)? | Background |
 | Q8 | How important is the human-GM **assistant** mode relative to the full AI GM? | Kept working; not expanded until after M9 |
@@ -2043,9 +2175,13 @@ the compat UI in one browser window.
 | Q11 | Frontend: keep vanilla HTML/JS pages or adopt a framework for the play view? | Keep vanilla + SSE through M10 |
 | Q12 | API style: version prefix (`/api/v1`) for new routes? Keep `/gm/step` and `/sessions` long-term? | Root paths like today; keep compat until M10, then deprecate |
 | Q13 | ~~BlackDragon files?~~ **Answered:** delete. Done | T0.2 |
-| Q14 | Expected table size and session length (typical N, max N, turns per session) — this sets token budgets and spotlight tuning | 1–6 players, ~100 turns/session |
-| Q15 | After Phase 1: network play first, or the Discord bot first? The bot can run on the same single computer without opening network ports | Network (M12) then Discord (M13) |
-| Q16 | On the single computer (Phase 1), should everyone log in with a password, or pick their account from a list (password optional)? | Pick from list; passwords required from Phase 2 |
+| Q14 | ~~Table size?~~ **Answered:** at most 10 players to begin with | §11.2, `max_players = 10` |
+| Q15 | ~~Network or Discord first?~~ **Answered:** network, then Discord | M12 → M13 |
+| Q16 | ~~Phase 1 login?~~ **Answered:** pick from a list with "add"; a player may have several characters and selects one | §11.1 |
 | Q17 | WoD scope: only *Vampire: The Masquerade Revised* (the PDFs you have), or also other WoD lines (Werewolf, Mage, …) or editions (V20, V5)? And which non-WoD rulebook should prove the importer (T3.12)? | VtM Revised only; second system chosen later |
-| Q18 | May the Storyteller quote short rule passages from your PDFs to players (e.g. in rules look-ups), or only paraphrase and cite page numbers? | Paraphrase + page citation |
-| Q19 | Should players be able to see the rulebook PDFs/extracted rules, or only the host? | Host only; players see their sheet and page references |
+| Q18 | May the Storyteller quote short rule passages from your PDFs to players (e.g. in rules look-ups), or only paraphrase and cite page numbers? Everyone can open the PDFs now (Q19), so short quotes add little risk | Short quotes (≤ 2 sentences) + page citation |
+| Q19 | ~~Who can see the PDFs?~~ **Answered:** anyone | §11.6 |
+| Q20 | "Vampire: The Masquerade v2": do you mean **2nd Edition** (1992), **V20** (20th Anniversary), or the **Revised** books you already uploaded? The dice core is the same; trait lists and some numbers differ | Revised (matches your PDFs); 2nd Ed/V20 via import later |
+| Q21 | Do you have a *Demon: The Fallen* PDF to upload? It is not in the repository | Build the `demon-the-fallen` structure now; enrich when the PDF arrives |
+| Q22 | Typical session length (turns or hours)? This tunes summaries and token budgets | ~100 turns / 3–4 hours |
+| Q23 | Free cloud models: acceptable if the provider's free tier may use your prompts (chat text, short rule excerpts) for training? | Local only unless you enable a cloud profile |
