@@ -41,6 +41,11 @@ These are the problems today:
    stored as events, generated after commit, and retrieved with SQLite FTS5. Embeddings are optional
    later behind the same interface.
 
+**Models (owner decision, plan §9.6).** The target machine is a laptop with an 8 GB RTX 4070, and
+the project must cost nothing. The default is therefore a local 7–8B tool-capable model on Ollama,
+chosen by a benchmark, with `num_ctx` set explicitly (8k default). Models are switchable per role
+in settings. Free cloud endpoints (OpenAI-compatible) are optional and opt-in.
+
 ## Consequences
 
 - ✅ The model sees continuity. State changes are validated and logged. Resume rebuilds the same prompt.

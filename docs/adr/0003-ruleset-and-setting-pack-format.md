@@ -37,6 +37,11 @@ PbtA, …) and any setting theme, and validate PC/NPC sheets against the active 
 
    World of Darkness (VtM Revised) is the primary system and the importer's reference. Imported
    packs are data-only and local, and are never committed.
+9. **Several rulesets per campaign (cross-genre, plan §8.7).** A campaign has a primary ruleset
+   plus `extra_rulesets`, and each character's sheet names its own ruleset. Rulesets sharing a
+   `family` (VtM and *Demon: The Fallen*: `storyteller-classic`) compare results directly. Other
+   families meet through each pack's `outcome_ladder`. The free D&D SRD 5.2 (CC BY 4.0) is the
+   importer's non-WoD proof of concept.
 
 ## Consequences
 
