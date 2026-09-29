@@ -914,7 +914,7 @@ LLM or player input.
 `rng.py` implements `hmac-sha256-ctr-v1`:
 
 - `key = HMAC-SHA256(campaign_secret_seed, branch_id)`
-- the n-th draw is `HMAC-SHA256(key, counter.to_bytes(8))`, turned into an unbiased integer in
+- the n-th draw is `HMAC-SHA256(key, counter.to_bytes(8, "big"))`, turned into an unbiased integer in
   `[1, sides]` by rejection sampling. Each draw increments `counter`.
 - `DiceRoll.rng` records `counter_start..counter_end`. With the seed, any roll can be re-derived
   (audit, replay tests). The seed is stored server-side only (DB column or OS keyring, Q9).
@@ -1187,7 +1187,8 @@ class LLMProvider(Protocol):
   stripped from the narration shown to players.
 
 ```python
-FENCE = re.compile(r"```(storyteller-actions|json)\s*\n", re.IGNORECASE)
+FENCE = re.compile(r"```(storyteller-actions|json)[ \t]*\n", re.IGNORECASE)
+CLOSING = re.compile(r"\s*```\s*\Z")          # only the closing fence may follow
 
 def extract_actions(text: str) -> tuple[str, list[dict] | None]:
     matches = list(FENCE.finditer(text))
@@ -1195,9 +1196,12 @@ def extract_actions(text: str) -> tuple[str, list[dict] | None]:
         return text, None
     m = matches[-1]
     try:
-        obj, end = json.JSONDecoder().raw_decode(text, m.end())
+        start = len(text) - len(text[m.end():].lstrip())   # raw_decode does not skip whitespace
+        obj, end = json.JSONDecoder().raw_decode(text, start)
     except json.JSONDecodeError:
         return text, None                      # logged; turn continues without state changes
+    if not CLOSING.match(text, end):
+        return text, None                      # block not at the very end: ignore, keep all text
     narration = text[: m.start()].rstrip()
     actions = obj.get("actions") if isinstance(obj, dict) else None
     return narration, actions if isinstance(actions, list) else None
@@ -1252,6 +1256,10 @@ Larger windows scale up the verbatim window and retrieval first.
 - Summarisation runs **after** the turn commits (background task under the same campaign lock
   queue). It never blocks the player's response. If it fails, the next turn simply trims harder.
 - Summaries are events, so resume rebuilds the *identical* context (§6.5).
+- A crash between turn commit and summary creation is detected on resume. If the verbatim window
+  (from `ContextSnapshot.verbatim_window_from_seq`) exceeds its budget with no covering summary,
+  summarisation is re-queued before the next turn. The context is identical to what it would have
+  been without the crash.
 
 ### 10.3 Memory & NPC recall
 
@@ -1513,7 +1521,7 @@ at root below. Auth: the player/host token as a bearer token in the `Authorizati
 See [ADR-0005](./adr/0005-multiplayer-transport-sse.md).
 
 ```text
-id: 1842                     # event seq (or seq.subindex for deltas) → Last-Event-ID resume
+id: 1842                     # event seq (deltas use "seq.subindex") → Last-Event-ID resume
 event: message.delta
 data: {"turn_id":"…","message_id":"…","delta":"The door groans"}
 
@@ -1534,6 +1542,8 @@ Event types:
 | Other | `error`, `heartbeat` (every 15 s) |
 
 SSE types are a client-facing view of persisted events. Most map 1:1. `scene.changed` covers `scene.started`/`scene.updated`/`scene.ended`, `state.updated` covers `state.patched`/`turn.*`, and `message.delta`/`message.retracted`/`turn.queued`/`heartbeat` are transient, never persisted. Secret events are delivered only to authorised subscribers. Whisper events go only to their target players and the GM.
+
+On reconnect, a `Last-Event-ID` of the form `seq.subindex` (a transient delta) is truncated to `seq`. The server replays every committed event after `seq`, including the `message.final` that supersedes any partial deltas, and resumes live deltas if that turn is still streaming.
 
 Player input stays on plain `POST`, which gives simple idempotency and retries. SSE works through proxies and needs no extra
 dependency (a `StreamingResponse` with `text/event-stream`). WebSockets can be added later with the same `Broadcaster`.
