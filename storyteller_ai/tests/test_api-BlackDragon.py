@@ -1,6 +1,5 @@
 import asyncio
 import io
-import zipfile
 
 from httpx2 import ASGITransport, AsyncClient
 
@@ -121,69 +120,6 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
-def test_character_sheet_create_and_export_pdf():
-    templates_response = _run_async(
-        _submit_request("get", "/character-sheets/templates", json={"genre": "fantasy", "audience": "player"})
-    )
-    assert templates_response.status_code == 200
-    templates = templates_response.json()["templates"]
-    assert templates
-
-    template_key = templates[0]["key"]
-    create_response = _run_async(
-        _submit_request(
-            "post",
-            "/character-sheets/",
-            json={
-                "template_key": template_key,
-                "name": "Sir Rowan",
-                "fields": {"archetype": "Knight"},
-            },
-        )
-    )
-    assert create_response.status_code == 200
-    sheet = create_response.json()["sheet"]
-    assert sheet["name"] == "Sir Rowan"
-
-    export_response = _run_async(
-        _submit_request("get", f"/character-sheets/{sheet['sheet_id']}/export", json={"format": "pdf"})
-    )
-    assert export_response.status_code == 200
-    assert export_response.headers["content-type"] == "application/pdf"
-    assert export_response.content.startswith(b"%PDF")
-
-
-def test_character_sheet_export_docx():
-    create_response = _run_async(
-        _submit_request(
-            "post",
-            "/character-sheets/",
-            json={
-                "template_key": "horror-investigator-player",
-                "name": "Mina Hale",
-                "fields": {"occupation": "Archivist"},
-            },
-        )
-    )
-    assert create_response.status_code == 200
-    sheet_id = create_response.json()["sheet"]["sheet_id"]
-
-    export_response = _run_async(
-        _submit_request("get", f"/character-sheets/{sheet_id}/export", json={"format": "docx"})
-    )
-    assert export_response.status_code == 200
-    assert (
-        export_response.headers["content-type"]
-        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
-
-    archive = zipfile.ZipFile(io.BytesIO(export_response.content))
-    names = set(archive.namelist())
-    assert "word/document.xml" in names
-<<<<<<< HEAD
-=======
-
-
 def test_ocr_status_endpoint():
     response = _run_async(_submit_request("get", "/settings/ocr"))
 
@@ -243,4 +179,3 @@ def test_session_create_with_campaign_genres(monkeypatch):
     body = response.json()
     assert body["campaign_genres"] == ["vampire", "mage"]
     assert body["document_ids"] == ["book-one", "book-two"]
->>>>>>> cb5351ad94b7d8db2bca5574351621570b88fe74

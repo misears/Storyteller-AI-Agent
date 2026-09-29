@@ -68,9 +68,31 @@ echo.
 echo Starting backend server...
 start "Backend" cmd /k "set LLM_PROVIDER=ollama && set OLLAMA_URL=http://127.0.0.1:11434 && set OLLAMA_MODEL=llama2:7b && set TESSERACT_CMD=%TESSERACT_CMD% && "%~dp0venv\Scripts\python.exe" -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000"
 
-echo Waiting briefly before opening the browser...
-timeout /t 3 /nobreak >nul
-start "" "http://127.0.0.1:8000"
+set "BACKEND_HEALTH_URL=http://127.0.0.1:8000/health"
+set "MAX_WAIT_SECONDS=30"
+set /a WAIT_COUNT=0
 
+echo Waiting for backend readiness on %BACKEND_HEALTH_URL%...
+
+:wait_for_backend
+powershell -NoProfile -Command "try { $resp = Invoke-WebRequest -UseBasicParsing '%BACKEND_HEALTH_URL%'; if ($resp.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+if not errorlevel 1 goto backend_ready
+
+set /a WAIT_COUNT+=1
+if %WAIT_COUNT% geq %MAX_WAIT_SECONDS% goto backend_timeout
+timeout /t 1 /nobreak >nul
+goto wait_for_backend
+
+:backend_ready
+echo Backend is ready. Opening browser...
+start "" "http://127.0.0.1:8000"
 echo All started. If the browser does not open automatically, visit http://127.0.0.1:8000
+goto launcher_done
+
+:backend_timeout
+echo Backend did not become ready within %MAX_WAIT_SECONDS% seconds.
+echo Check the Backend window for startup errors, then open http://127.0.0.1:8000 manually.
+exit /b 1
+
+:launcher_done
 exit /b 0
