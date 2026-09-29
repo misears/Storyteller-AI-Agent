@@ -30,8 +30,10 @@ document store.
 5. **Snapshots** (materialised state + context pointers + checksum) are taken every 100 events, at
    scene and session end, and on manual save. **Resume** = latest valid snapshot + replay of later
    events. The LLM is never re-invoked.
-6. Each turn is **one transaction**, serialised by a per-campaign lock. Dice events are the
-   exception: they are committed immediately (see ADR-0002).
+6. Turns are serialised by a per-campaign lock. Player input + `turn.started` are committed first.
+   Each `dice.rolled` is committed immediately (see ADR-0002). All remaining effects of the turn and
+   `turn.completed` are committed in **one transaction**. A started-but-not-completed turn is
+   therefore detectable on resume.
 7. **Loading an older save forks a new branch.** History is never destroyed.
 8. Portable **export** = zip of `events.jsonl` + manifest/checksums + pinned pack copies.
    Projections are rebuilt on import.

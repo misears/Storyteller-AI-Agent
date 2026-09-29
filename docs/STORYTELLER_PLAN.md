@@ -221,7 +221,7 @@ flowchart LR
 
 | Component | Responsibility |
 |---|---|
-| `TurnService` | Owns one turn end-to-end. It takes the per-campaign lock, persists the input, runs the LLM/tool loop, validates output, commits all events in a single unit of work, then broadcasts |
+| `TurnService` | Owns one turn end-to-end. It takes the per-campaign lock, persists the input, runs the LLM/tool loop, validates output, commits the turn's effects in one resolution transaction (§4 invariants), then broadcasts |
 | `ContextBuilder` | Assembles the message list from layered sources under a token budget (§10) |
 | `ToolRegistry` | Declares tools to the provider, validates arguments (JSON Schema), checks authority, executes handlers, and records each tool call and result as an event (idempotent by `tool_call_id`) |
 | Dice engine | Parses expressions, rolls with the campaign RNG and interprets outcomes using the ruleset mechanic. It is the only producer of `DiceRoll` |
@@ -251,7 +251,7 @@ sequenceDiagram
     Player->>API: input text, character_id, client_msg_id
     API->>TS: submit(input)
     TS->>TS: acquire campaign lock, dedupe client_msg_id
-    TS->>DB: append message.posted (player), turn.started
+    TS->>DB: append message.posted (player), turn.started, commit (intake)
     TS->>TS: turn policy - resolve now or wait for other declarations
     TS->>CB: build(campaign_state, budget)
     CB-->>TS: messages = system protocol + context + history + input
@@ -279,10 +279,16 @@ sequenceDiagram
 
 **Turn invariants**
 
-- All events of a turn are written in **one transaction**. A crash before commit leaves the turn
-  `interrupted` (see §6.5). Dice results are the one exception: each `dice.rolled` event is committed
-  *immediately* in its own short transaction, so a crash or retry can never "re-roll until it's
-  good" (ADR-0002).
+- A turn uses three kinds of commit:
+  1. **Intake:** the player's `message.posted` + `turn.started` are committed first, in their own
+     transaction, so player input is never lost.
+  2. **Dice:** each `dice.rolled` event (+ its system message) is committed *immediately*, so a
+     crash or retry can never "re-roll until it's good" (ADR-0002).
+  3. **Resolution:** everything else (sheet/scene/tracker changes, GM narration,
+     `turn.completed`) is committed in **one transaction**.
+
+  A crash before (3) leaves a turn that was started but never completed, detected and marked
+  `interrupted` on resume (see §6.5).
 - Every `DiceRoll` is linked to the turn **and** a chat message. It links to the system message that
   announces the roll, and the GM narration message lists the `dice_roll_ids` it was based on.
 - Narration is streamed to clients as `message.delta` events but only becomes part of the log as
@@ -1641,7 +1647,7 @@ flowchart LR
 |---|---|---|
 | T1.1 | Add SQLAlchemy 2 + Alembic (check the advisory DB); `persistence/db.py` with WAL/FK pragmas; migrations run in `lifespan` | App starts on an empty dir and creates `campaigns.db` at head revision. PyInstaller build includes migrations |
 | T1.2 | `models/` Pydantic domain models from §5 (+ JSON Schema export test) | Models import; round-trip `model_dump`/`model_validate` tests |
-| T1.3 | `events` table + `EventStore.append/read` + unit of work (single transaction, per-campaign `asyncio.Lock`) | Crash-injection test: no partial writes |
+| T1.3 | `events` table + `EventStore.append/read` + unit of work (intake / dice / resolution commits per §4, per-campaign `asyncio.Lock`) | Crash-injection test: no partial resolution writes; input and dice survive; turn detected as interrupted |
 | T1.4 | Reducers + projectors for campaign, player, session, scene, message events | Projection rebuild equals live projection |
 | T1.5 | `CampaignService` + `POST/GET /campaigns`; `/sessions/*` becomes facade | Existing `/sessions` API tests still pass, backed by DB; survives restart |
 | T1.6 | Chat log: `message.posted` projection + `GET /campaigns/{id}/chat` (paging, filters) | Ordered by `seq`; idempotent on `client_msg_id` |
