@@ -66,11 +66,13 @@ The implementation work below evolves those parts toward the agreed campaign, ru
 and UI design rather than starting from an empty project.
 
 - [x] **T0.2** — Remove `*-BlackDragon.*` duplicate files. Verified: none remain in the repository.
-- [ ] **T0.1** — Sign off the architecture decisions. Owner answers are recorded in the plan, but
-  ADRs 0001–0006 are still marked *Proposed*.
+- [x] **T0.1** — Owner decisions recorded in the plan; ADRs 0001–0006 accepted by the owner.
 - [ ] **T0.3** — Stop tracking runtime data and PDFs and complete the documented cleanup. The
-  database, JSON data, and uploaded PDFs are still present in the repository; follow the backup and
-  history-rewrite precautions in the plan.
+  local data has been backed up outside the repository and all 12 runtime files have been
+  untracked without deleting the working copies. Both stores boot from an empty test data
+  directory. Still pending: resolve pre-existing merge markers that block a fresh-clone app
+  startup check, then have the owner rewrite repository history and coordinate other clones as
+  described in the plan. Do not mark complete until PDFs are absent from all history.
 
 ## Phase 1 — Single computer (M0–M11)
 

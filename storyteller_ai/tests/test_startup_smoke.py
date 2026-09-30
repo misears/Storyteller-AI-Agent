@@ -24,3 +24,14 @@ def test_backend_python_files_compile():
 def test_backend_main_app_importable():
     module = importlib.import_module("backend.main")
     assert hasattr(module, "app")
+
+
+def test_empty_test_data_dir_initializes_stores():
+    from backend.services.app_paths import get_data_dir
+    from backend.services.character_sheet_store import character_sheet_store
+    from backend.services.document_store import document_store
+
+    assert document_store.database_path == get_data_dir() / "storyteller.db"
+    assert document_store.database_path.is_file()
+    assert character_sheet_store.store_path == get_data_dir() / "character_sheets.json"
+    assert character_sheet_store.list_templates()

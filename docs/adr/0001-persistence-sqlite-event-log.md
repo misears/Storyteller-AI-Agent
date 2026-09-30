@@ -1,6 +1,6 @@
 # ADR-0001: Persistence — SQLite + append-only event log with snapshots
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Plan sections:** §5, §6
 
 ## Context

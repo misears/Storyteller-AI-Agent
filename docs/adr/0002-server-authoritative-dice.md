@@ -1,6 +1,6 @@
 # ADR-0002: Server-authoritative, deterministic dice
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Plan sections:** §7, §9.1
 
 ## Context
