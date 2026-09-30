@@ -1,6 +1,6 @@
 # ADR-0006: Frontend — React + TypeScript + Vite single-page app
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Plan sections:** §3.1, §16 (M10)
 
 ## Context

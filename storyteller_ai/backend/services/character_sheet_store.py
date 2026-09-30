@@ -5,9 +5,9 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-STORE_PATH = DATA_DIR / "character_sheets.json"
+from .app_paths import get_data_dir
+
+STORE_PATH = get_data_dir() / "character_sheets.json"
 
 
 def _utc_now_iso() -> str:

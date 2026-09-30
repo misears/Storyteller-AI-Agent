@@ -1,6 +1,6 @@
 # Storyteller Agent — Architecture & Implementation Plan
 
-> **Status:** Proposal for review (planning only — no backend code is changed by this PR).
+> **Status:** Architecture plan accepted by the owner (T0.1); implementation remains tracked separately.
 > **Scope:** A Storyteller agent whose *sole* function is to generate and run an RPG campaign for
 > **1..N players (N unbounded)**, driven by a pluggable **ruleset** and **setting/theme pack**, with a
 > persistent **chat log**, **dice roll log**, versioned **character sheets** (PCs *and* NPCs) and
@@ -2219,13 +2219,13 @@ the compat UI in one browser window.
 | Q8 | ~~Assistant mode priority?~~ **Answered:** default (kept working; not expanded until after M9) | §11.2 |
 | Q9 | ~~Secret GM rolls / verification?~~ **Answered:** default (allowed; verify after campaign end; seed in DB) | §7 |
 | Q10 | ~~Safety tools?~~ **Answered:** default (lines, veils, X-card button in M10) | T10.3 |
-| Q11 | Frontend: keep vanilla HTML/JS pages or adopt a framework for the play view? | Keep vanilla + SSE through M10 |
+| Q11 | ~~Frontend?~~ **Answered:** React + TypeScript + Vite, replacing legacy pages after parity | §3.1, ADR-0006, M10 |
 | Q12 | ~~API style?~~ **Answered:** default (root paths; compat routes until M10, then removed in T10.7) | §13.6 |
 | Q13 | ~~BlackDragon files?~~ **Answered:** delete. Done | T0.2 |
 | Q14 | ~~Table size?~~ **Answered:** at most 10 players to begin with | §11.2, `max_players = 10` |
 | Q15 | ~~Network or Discord first?~~ **Answered:** network, then Discord | M12 → M13 |
 | Q16 | ~~Phase 1 login?~~ **Answered:** pick from a list with "add"; a player may have several characters and selects one | §11.1 |
-| Q17 | WoD scope: only *Vampire: The Masquerade Revised* (the PDFs you have), or also other WoD lines (Werewolf, Mage, …) or editions (V20, V5)? And which non-WoD rulebook should prove the importer (T3.12)? | VtM Revised only; second system chosen later |
+| Q17 | ~~WoD scope and importer proof?~~ **Answered:** start with VtM Revised and *Demon: The Fallen*, support multiple rulesets per campaign, and prove import with the free D&D SRD 5.2 | §8.5, §8.7, T3.12–T3.14 |
 | Q18 | ~~Quote rule passages?~~ **Answered:** yes, short quotes | §9.1 `lookup_rules` |
 | Q19 | ~~Who can see the PDFs?~~ **Answered:** anyone | §11.6 |
 | Q20 | ~~Which VtM edition?~~ **Answered:** Revised | §8.5 |

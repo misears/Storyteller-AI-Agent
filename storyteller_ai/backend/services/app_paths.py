@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sys
 
 
@@ -19,6 +20,8 @@ def get_frontend_dir() -> Path:
 
 
 def get_data_dir() -> Path:
+    if override := os.environ.get("STORYTELLER_DATA_DIR"):
+        return Path(override).expanduser().resolve()
     if is_frozen():
         return get_app_root() / "data"
     return get_app_root() / "backend" / "data"

@@ -1,6 +1,6 @@
 # ADR-0005: Multiplayer transport — POST for input, SSE for broadcast
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Plan sections:** §11, §13.7
 
 ## Context

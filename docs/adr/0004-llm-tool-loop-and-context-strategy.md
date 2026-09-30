@@ -1,6 +1,6 @@
 # ADR-0004: LLM tool loop, SYSTEM_PROTOCOL and context strategy
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Plan sections:** §4, §9, §10
 
 ## Context

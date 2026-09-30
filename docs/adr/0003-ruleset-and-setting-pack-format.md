@@ -1,6 +1,6 @@
 # ADR-0003: Ruleset and setting pack format
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Plan sections:** §8, §5.5
 
 ## Context

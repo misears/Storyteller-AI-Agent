@@ -31,3 +31,7 @@ coverage/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Local campaign state, uploaded books, and imported ruleset packs
+/storyteller_ai/backend/data/
+/storyteller_ai/data/
