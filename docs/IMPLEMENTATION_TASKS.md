@@ -1,9 +1,62 @@
-# Storyteller AI — Implementation Task Tracker
+# Storyteller AI — Implementation and Phase Task Tracker
 
 This is the updateable checklist for bringing the existing app in line with
 [`STORYTELLER_PLAN.md`](./STORYTELLER_PLAN.md). The plan remains the source of truth for design,
 scope, and acceptance criteria; this file is the progress tracker. Check an item only when its
 acceptance criteria in the plan are met.
+
+**Delivery goal:** Phase 1 is complete only after local-release sign-off (T11.5). Network play
+follows in Phase 2; completion of Phase 3 (Discord) marks the **end of alpha**, not general
+availability. Unchecked tasks may be partially implemented, but are not accepted yet.
+
+## Design-section map
+
+The [original system design](../White%20Wolf%20Storyteller%20AI%20%E2%80%94%20Complete%20System%20Design%20Document.txt)
+supplies the seven section headings. The [setup task](../SETUP_STORYTELLER_TASK.md) documents
+the early backend skeleton. The later architecture plan and ADRs take precedence where these
+documents differ: local FastAPI/SQLite event log, React UI, Ollama-first model choice, and
+network play before Discord. PostgreSQL, ChromaDB, Celery, Redis, and Docker are not Phase 1
+prerequisites.
+
+| Design section | Implementation milestones | Acceptance checkpoint |
+| --- | --- | --- |
+| 1. Purpose and architecture | M0, M11 | Local-only release is signed off; adapters do not own game logic. |
+| 2. FastAPI skeleton and UI | M1, M5, M10 | Campaign flows work in the built web UI; legacy routes retire after parity. |
+| 3. Data schema | M1, M4, M6 | Events replay, sheets version, and saves resume or fork reliably. |
+| 4. Prompt pack | M5, M7, M9 | All three GM modes use bounded context and server-approved tools. |
+| 5. PDF ingestion | M3, M10 | Selected PDFs produce cited, reviewable, playable packs without bundling books. |
+| 6. State engine | M2, M8, M9 | Dice/state are authoritative; up to ten local players stay in sync and isolated. |
+| 7. Discord bot | M13 (after M12) | Discord is an adapter over the same API and event history; alpha ends here. |
+
+Work in dependency order: M0 -> M1/M2 -> M3 -> M4 -> M5 -> M6/M7/M9 -> M8 -> M10 -> M11 -> M12 -> M13.
+Keep the app runnable and existing tests green at each milestone. The plan calls both the model
+switcher and turn endpoint T5.7; the two separately labeled rows below preserve that source ID.
+
+### Section acceptance criteria
+
+1. **Purpose/architecture:** Start a fresh install on `127.0.0.1` without Node at runtime or an
+  external database. Keep mechanics in shared services, not routers, UI, or the future bot.
+  Back up owner PDFs and runtime data before untracking them or the owner-run history purge;
+  never bundle books, credentials, or long copyrighted passages.
+2. **FastAPI/UI:** Create, play, pause, resume, and inspect a campaign through the built React
+  app. Two local windows show the correct committed events. Retire legacy pages/routes only
+  after parity tests pass; generated API types and packaged assets must work in the desktop build.
+3. **Data schema:** Replay projections from events; reject invalid or conflicting sheet edits;
+  restart in a fresh process with identical state, chat/dice logs, prompt, and next roll. An
+  older save forks without overwriting its source; export/import resumes equivalently.
+4. **Prompt pack:** Solo, group, and assistant modes obey ruleset and visibility constraints.
+  Only validated tools change state or roll dice; fabricated results are corrected. A 400-turn,
+  three-session campaign stays within context budget and retains summaries without gaps.
+5. **PDF ingestion:** Use existing local extraction/OCR, selected-PDF lookup, short cited rules
+  passages, field-level confidence and review questions. Reject invalid drafts; prove a
+  playable second system, versioned supplement extension, and cross-genre play without
+  silently changing existing campaigns or bundling owner PDFs.
+6. **State engine:** Counter-based rolls are verifiable and never supplied by the client. Ten
+  local players can submit without lost/duplicated turns; an eleventh is refused. SSE replay,
+  authority checks, GM-only visibility, lines/veils, and X-card pause work in the shared UI.
+7. **Discord:** After network identity is enforced, link users and channels explicitly. Bot
+  commands use the same API, with secret data sent only privately; restart from the last
+  delivered event sequence without duplicate or missed posts.
 
 ## Current baseline
 
@@ -129,6 +182,15 @@ and UI design rather than starting from an empty project.
 - [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
 - [ ] **T11.5** — Complete scripted and real multi-session local play; record owner sign-off.
 
+**Phase 1 complete gate:** Python tests and ruff, pack validation, migrations, replay, scripted
+tool-loop, PDF import, and multi-window UI checks pass. Record 1,000-turn resume (< 1 s) and
+non-LLM turn overhead (< 100 ms) measurements, even when performance CI is non-blocking. Smoke
+test the packaged app without Node installed. Run one full scripted session and a real
+multi-session campaign covering saves/forks, sheets, rules lookup/import, model switching,
+safety controls, and a second window. T11.5 needs owner confirmation that local play works as
+desired; only then mark Phase 1 complete and begin M12. An optional live-LLM smoke test runs
+on the owner's machine; CI uses a scripted provider.
+
 ## Deferred until Phase 1 sign-off
 
 Do not start M12 or M13 until T11.5 is complete. Network play comes before Discord.
@@ -142,6 +204,11 @@ Do not start M12 or M13 until T11.5 is complete. Network play comes before Disco
 - [ ] **T12.5** — Add disconnect presence and reconnect/absent-character handling.
 - [ ] **T12.6** — Document optional hosted deployment.
 
+**Phase 2 complete gate:** Ten devices can join, play, and reconnect without starvation or
+unauthorized visibility. Reject unauthenticated network mutations, constrain each player to
+their own characters, and keep single-computer mode working. Bind to a LAN interface only when
+network mode is explicitly enabled; hosted TLS/reverse-proxy notes are optional.
+
 ### M13 — Discord bot (Phase 3)
 
 - [ ] **T13.1** — Add the bot process and secure configuration.
@@ -151,6 +218,11 @@ Do not start M12 or M13 until T11.5 is complete. Network play comes before Disco
 - [ ] **T13.5** — Add roll, sheet, save, recap, and turn commands.
 - [ ] **T13.6** — Keep private/GM-only content out of public channels.
 - [ ] **T13.7** — Resume delivery after a bot restart without duplicate or missed messages.
+
+**End-of-alpha gate:** Phase 1 and Phase 2 gates still pass. A linked Discord group can play
+and resume through Discord and the web UI against one shared event history, including rolls,
+saves, private/GM visibility, and restart recovery. Test the bot against a fake gateway and
+smoke-test in a private server. Record beta/production gaps separately; alpha is not GA.
 
 ## Tracker notes
 
