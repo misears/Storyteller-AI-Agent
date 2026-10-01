@@ -14,6 +14,7 @@ from ..services.dice_service import dice_service
 from ..services.document_store import document_store
 from ..services.campaign_turn_service import campaign_turn_service
 from ..services.save_service import save_service
+from ..services.bible_service import bible_service
 from fastapi.responses import Response
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -85,6 +86,10 @@ class CampaignTurnRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     name: str
+
+
+class BibleEditRequest(BaseModel):
+    value: object
 
 
 @router.post("/", response_model=Campaign)
@@ -204,3 +209,30 @@ def load_campaign_save(campaign_id: str, save_id: str):
 def export_campaign(campaign_id: str):
     campaign = get_campaign(campaign_id)
     return Response(save_service.export(campaign), media_type="application/zip")
+
+
+@router.post("/{campaign_id}/session-zero/bible")
+def generate_bible(campaign_id: str, section: str | None = None):
+    campaign = get_campaign(campaign_id)
+    try:
+        bible = bible_service.generate(campaign, section)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"bible": bible.model_dump(mode="json")}
+
+
+@router.get("/{campaign_id}/session-zero/bible")
+def get_bible(campaign_id: str):
+    bible = bible_service.get(get_campaign(campaign_id))
+    if bible is None:
+        raise HTTPException(status_code=404, detail="Campaign bible not found")
+    return {"bible": bible.model_dump(mode="json")}
+
+
+@router.put("/{campaign_id}/session-zero/bible/{section}")
+def edit_bible(campaign_id: str, section: str, payload: BibleEditRequest):
+    try:
+        bible = bible_service.edit(get_campaign(campaign_id), section, payload.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"bible": bible.model_dump(mode="json")}

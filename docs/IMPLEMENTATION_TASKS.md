@@ -187,8 +187,10 @@ and UI design rather than starting from an empty project.
 
 ### M9 — Session zero & campaign generation
 
-- [ ] **T9.1** — Generate and validate a campaign bible in repairable sections.
-- [ ] **T9.2** — Let the host review, edit, and regenerate bible sections.
+- [x] **T9.1** — Generate and validate a campaign bible in repairable sections. Added typed bible
+  sections with deterministic local generation and Pydantic validation.
+- [x] **T9.2** — Let the host review, edit, and regenerate bible sections. Added persisted session-zero
+  bible generation, retrieval, and section edit routes.
 - [ ] **T9.3** — Add ruleset-driven PC chargen for each player.
 - [ ] **T9.4** — Seed NPCs, hooks, and the opening scene from the campaign bible.
 - [ ] **T9.5** — Add session start/end, recap, and between-session world advancement.
