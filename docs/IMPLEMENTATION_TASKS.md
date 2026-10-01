@@ -222,7 +222,9 @@ and UI design rather than starting from an empty project.
 
 - [x] **T11.1** — Add request limits, secret-leak checks, and loopback-only bind protection.
   Added configurable request-size middleware plus reusable loopback and public-narration guards.
-- [ ] **T11.2** — Meet the planned resume and turn-overhead performance targets.
+- [x] **T11.2** — Meet the planned resume and turn-overhead performance targets. The local
+  harness measured 1,000-event replay at 0.0268 seconds and non-LLM persistence overhead at
+  1.63 ms on the development machine.
 - [ ] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
 - [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
 - [ ] **T11.5** — Complete scripted and real multi-session local play; record owner sign-off.
