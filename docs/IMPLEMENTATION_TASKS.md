@@ -116,8 +116,9 @@ and UI design rather than starting from an empty project.
   self-authored, pins the `storyteller-classic` family, and contains no extracted rulebook prose.
 - [x] **T3.5** — Scope rule lookup to selected campaign PDFs and include page citations. PDF page
   chunks are retained, and campaign lookup derives its allow-list from `source_document_ids`.
-- [ ] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.
-- [ ] **T3.7** — Generalize existing faction, secrecy, and city engines into configurable trackers.
+- [x] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.
+- [x] **T3.7** — Generalize existing faction, secrecy, and city engines into configurable trackers.
+  Added bounded generic clock/meter operations and status/progress helpers.
 - [ ] **T3.8** — Build resumable PDF classification and rules-extraction jobs.
 - [ ] **T3.9** — Add the PDF import wizard with editable fields and verification questions.
 - [ ] **T3.10** — Validate imported packs and save them with provenance.
