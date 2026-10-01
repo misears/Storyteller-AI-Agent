@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from .persistence.db import upgrade_database
 from .routers import character_sheets, documents, gm, sessions, settings
 from .services.browser_launcher import launch_browser_when_ready
 from .services.app_paths import get_frontend_dir
@@ -22,6 +23,7 @@ if "*" in CORS_ORIGINS:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    upgrade_database()
     launch_browser_when_ready()
     yield
 

@@ -83,7 +83,7 @@ and UI design rather than starting from an empty project.
 
 ### M1 — Persistence & event log
 
-- [ ] **T1.1** — Add SQLAlchemy, Alembic, database setup, and startup migrations.
+- [x] **T1.1** — Add SQLAlchemy, Alembic, database setup, and startup migrations.
 - [ ] **T1.2** — Add the domain models and schema round-trip tests.
 - [ ] **T1.3** — Add the append-only event store and atomic turn unit of work.
 - [ ] **T1.4** — Add event reducers and projectors.
