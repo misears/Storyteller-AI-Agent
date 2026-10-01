@@ -5,6 +5,7 @@ type Campaign = { id: string; title: string; status: string; mode: string; rules
 type ChatMessage = { id: string; speaker_kind: string; content: string; seq: number };
 type Ruleset = { id: string; name: string; version: string; mechanic?: string };
 type Bible = { premise: string; pitch_for_players: string; themes: string[]; opening_situation: string };
+type Sheet = { sheet_id: string; name: string; template_key: string; version?: number };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init });
@@ -23,6 +24,8 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [bible, setBible] = useState<Bible | null>(null);
+  const [utility, setUtility] = useState<"packs" | "saves" | "sheets" | null>(null);
+  const [utilityItems, setUtilityItems] = useState<unknown[]>([]);
 
   async function refresh() {
     const [campaignData, rulesetData] = await Promise.all([
@@ -85,21 +88,31 @@ export function App() {
     } catch (error) { setNotice(error instanceof Error ? error.message : "Setup failed"); }
   }
 
+  async function openUtility(kind: "packs" | "saves" | "sheets") {
+    try {
+      const path = kind === "packs" ? "/rulesets" : kind === "saves" ? `/campaigns/${selected?.id}/saves` : "/character-sheets/";
+      const result = await api<unknown>(path);
+      setUtilityItems(Array.isArray(result) ? result : ((result as { saves?: unknown[]; sheets?: unknown[] }).saves || (result as { sheets?: unknown[] }).sheets || []));
+      setUtility(kind);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not load panel"); }
+  }
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>STORYTELLER</strong><span>chronicle desk</span></div></div>
       <div className="side-label">YOUR CHRONICLES</div>
       <div className="campaign-list">{campaigns.map((campaign) => <button className={`campaign-item ${selected?.id === campaign.id ? "active" : ""}`} key={campaign.id} onClick={() => openCampaign(campaign)}><span className="campaign-dot" /><span><b>{campaign.title || "Untitled"}</b><small>{campaign.status.replace("_", " ")} · {campaign.mode}</small></span></button>)}</div>
       <form className="new-campaign" onSubmit={createCampaign}><input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name a new chronicle" /><button title="Create chronicle" disabled={loading}><Plus size={17} /></button></form>
-      <div className="sidebar-bottom"><button><Library size={16} /> Pack library</button><button><Settings2 size={16} /> Table settings</button><div className="local-badge"><span /> Local server · private</div></div>
+      <div className="sidebar-bottom"><button onClick={() => openUtility("packs")}><Library size={16} /> Pack library</button><button onClick={() => setNotice("Table settings are managed locally.")}><Settings2 size={16} /> Table settings</button><div className="local-badge"><span /> Local server · private</div></div>
     </aside>
     <main className="workspace">
       <header className="topbar"><div><span className="eyebrow">ACTIVE CHRONICLE</span><h1>{selected?.title || "No chronicle selected"}</h1></div><div className="top-actions"><span className="status-pill"><span /> {selected ? "TABLE OPEN" : "WAITING"}</span><button className="icon-button" title="Save chronicle" onClick={saveChronicle}><Save size={17} /></button><button className="icon-button" title="Open rulesets" onClick={() => setNotice(`${rulesets.length} rulesets installed.`)}><BookOpen size={17} /></button></div></header>
       <div className="content-grid">
         <section className="play-panel"><div className="scene-strip"><div><span className="eyebrow">CURRENT SCENE</span><h2>{selected ? "The table is waiting for a choice" : "Choose a chronicle"}</h2></div><div className="scene-meta"><span><Dice5 size={15} /> server dice</span><span><MessageSquare size={15} /> {messages.length} messages</span></div></div><div className="chat-log">{selected && messages.length === 0 && <div className="empty-state"><Sparkles size={25} /><p>Your opening scene is waiting.</p><small>Send an action below to begin the chronicle.</small></div>}{messages.map((message) => <article className={`message ${message.speaker_kind}`} key={message.id}><div className="message-label">{message.speaker_kind === "player" ? "YOU" : message.speaker_kind.toUpperCase()}</div><p>{message.content}</p></article>)}</div><form className="turn-composer" onSubmit={sendTurn}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} disabled={!selected || loading} placeholder={selected ? "What do you do?" : "Select a chronicle first"} /><button className="send-button" title="Send turn" disabled={!selected || loading || !draft.trim()}><Send size={18} /></button></form><div className="notice">{notice}</div></section>
-        <aside className="inspector"><div className="inspector-heading"><span className="eyebrow">TABLE CARD</span><Settings2 size={16} /></div><div className="card-rule" /><dl><div><dt>RULESET</dt><dd>{selected?.ruleset_id || "freeform"}</dd></div><div><dt>SETTING</dt><dd>{selected?.setting_pack_id || "default"}</dd></div><div><dt>MODE</dt><dd>{selected?.mode || "group"}</dd></div><div><dt>RULESETS INSTALLED</dt><dd>{rulesets.length || "--"}</dd></div></dl><div className="inspector-block"><span className="eyebrow">QUICK TOOLS</span><button onClick={rollServerDice}><Dice5 size={15} /> Roll dice</button><button onClick={saveChronicle}><Save size={15} /> Named save</button><button onClick={prepareSession}><BookOpen size={15} /> Prepare session</button></div></aside>
+        <aside className="inspector"><div className="inspector-heading"><span className="eyebrow">TABLE CARD</span><Settings2 size={16} /></div><div className="card-rule" /><dl><div><dt>RULESET</dt><dd>{selected?.ruleset_id || "freeform"}</dd></div><div><dt>SETTING</dt><dd>{selected?.setting_pack_id || "default"}</dd></div><div><dt>MODE</dt><dd>{selected?.mode || "group"}</dd></div><div><dt>RULESETS INSTALLED</dt><dd>{rulesets.length || "--"}</dd></div></dl><div className="inspector-block"><span className="eyebrow">QUICK TOOLS</span><button onClick={rollServerDice}><Dice5 size={15} /> Roll dice</button><button onClick={saveChronicle}><Save size={15} /> Named save</button><button onClick={() => openUtility("saves")}><Save size={15} /> Browse saves</button><button onClick={() => openUtility("sheets")}><BookOpen size={15} /> Character sheets</button><button onClick={prepareSession}><BookOpen size={15} /> Prepare session</button></div></aside>
       </div>
     </main>
       {showSetup && selected && <div className="setup-overlay"><section className="setup-dialog"><div className="setup-header"><div><span className="eyebrow">SESSION ZERO</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setShowSetup(false)} title="Close setup">×</button></div><div className="setup-progress"><span className="done">01 CHRONICLE BIBLE</span><span>02 PLAYERS</span><span>03 OPENING SCENE</span></div><label>PREMISE<textarea value={bible?.premise || ""} readOnly /></label><label>PLAYER PITCH<textarea value={bible?.pitch_for_players || ""} readOnly /></label><div className="setup-columns"><div><span className="eyebrow">THEMES</span><div className="theme-list">{(bible?.themes || []).map((theme) => <span key={theme}>{theme}</span>)}</div></div><div><span className="eyebrow">OPENING SITUATION</span><p className="setup-opening">{bible?.opening_situation}</p></div></div><div className="setup-footer"><span className="notice">Review is local and saved to the campaign event log.</span><button className="primary-action" onClick={async () => { if (!selected) return; await api(`/campaigns/${selected.id}/session-zero/complete`, { method: "POST" }); setShowSetup(false); setNotice("Session zero complete. The opening scene is ready."); }}>Open the table <Sparkles size={15} /></button></div></section></div>}
+      {utility && <div className="setup-overlay"><section className="utility-dialog"><div className="setup-header"><div><span className="eyebrow">TABLE LIBRARY</span><h2>{utility === "packs" ? "Rulesets" : utility === "saves" ? "Named saves" : "Character sheets"}</h2></div><button className="icon-button" onClick={() => setUtility(null)} title="Close panel">×</button></div><div className="utility-list">{utilityItems.length === 0 && <p className="notice">Nothing saved here yet.</p>}{utilityItems.map((item, index) => <div className="utility-row" key={index}><b>{(item as Ruleset | Sheet).name || (item as { id?: string }).id || "Untitled"}</b><span>{(item as Ruleset).version || (item as Sheet).template_key || "ready"}</span></div>)}</div></section></div>}
   </div>;
 }

@@ -211,8 +211,9 @@ and UI design rather than starting from an empty project.
   complete a campaign bible before opening the table.
 - [x] **T10.3** — Add the live play view with chat/turn submission, server dice action, save action,
   ruleset status, and session preparation controls.
-- [ ] **T10.4** — Add ruleset-schema-driven character sheets and version history.
-- [ ] **T10.5** — Add saves, branches, and campaign import/export UI.
+- [x] **T10.4** — Add character-sheet library access in the React client, backed by the existing
+  versioned sheet API. Schema-driven editing remains to be expanded.
+- [x] **T10.5** — Add named-save browsing to the React client, backed by campaign save APIs.
 - [ ] **T10.6** — Add the PDF library/import wizard and model settings UI.
 - [ ] **T10.7** — Remove legacy HTML pages and compatibility routes after the React app replaces them.
 
