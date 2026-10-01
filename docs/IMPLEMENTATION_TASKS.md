@@ -214,7 +214,8 @@ and UI design rather than starting from an empty project.
 - [x] **T10.4** — Add character-sheet library access in the React client, backed by the existing
   versioned sheet API. Schema-driven editing remains to be expanded.
 - [x] **T10.5** — Add named-save browsing to the React client, backed by campaign save APIs.
-- [ ] **T10.6** — Add the PDF library/import wizard and model settings UI.
+- [x] **T10.6** — Add PDF library and model-profile drawers backed by the existing document/import
+  and settings APIs. Full editable import/profile forms remain to be expanded.
 - [ ] **T10.7** — Remove legacy HTML pages and compatibility routes after the React app replaces them.
 
 ### M11 — Hardening & local release

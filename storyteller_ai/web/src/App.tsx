@@ -24,7 +24,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [bible, setBible] = useState<Bible | null>(null);
-  const [utility, setUtility] = useState<"packs" | "saves" | "sheets" | null>(null);
+  const [utility, setUtility] = useState<"packs" | "saves" | "sheets" | "documents" | "profiles" | null>(null);
   const [utilityItems, setUtilityItems] = useState<unknown[]>([]);
 
   async function refresh() {
@@ -88,11 +88,13 @@ export function App() {
     } catch (error) { setNotice(error instanceof Error ? error.message : "Setup failed"); }
   }
 
-  async function openUtility(kind: "packs" | "saves" | "sheets") {
+  async function openUtility(kind: "packs" | "saves" | "sheets" | "documents" | "profiles") {
     try {
-      const path = kind === "packs" ? "/rulesets" : kind === "saves" ? `/campaigns/${selected?.id}/saves` : "/character-sheets/";
+      const path = kind === "packs" ? "/rulesets" : kind === "saves" ? `/campaigns/${selected?.id}/saves` : kind === "sheets" ? "/character-sheets/" : kind === "documents" ? "/documents/list" : "/settings/llm/profiles";
       const result = await api<unknown>(path);
-      setUtilityItems(Array.isArray(result) ? result : ((result as { saves?: unknown[]; sheets?: unknown[] }).saves || (result as { sheets?: unknown[] }).sheets || []));
+      const wrapper = result as { saves?: unknown[]; sheets?: unknown[]; documents?: unknown[]; profiles?: Record<string, unknown> };
+      const profiles = wrapper.profiles ? Object.entries(wrapper.profiles).map(([role, profile]) => ({ name: role, ...profile as object })) : [];
+      setUtilityItems(Array.isArray(result) ? result : (wrapper.saves || wrapper.sheets || wrapper.documents || profiles));
       setUtility(kind);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not load panel"); }
   }
@@ -103,7 +105,7 @@ export function App() {
       <div className="side-label">YOUR CHRONICLES</div>
       <div className="campaign-list">{campaigns.map((campaign) => <button className={`campaign-item ${selected?.id === campaign.id ? "active" : ""}`} key={campaign.id} onClick={() => openCampaign(campaign)}><span className="campaign-dot" /><span><b>{campaign.title || "Untitled"}</b><small>{campaign.status.replace("_", " ")} · {campaign.mode}</small></span></button>)}</div>
       <form className="new-campaign" onSubmit={createCampaign}><input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name a new chronicle" /><button title="Create chronicle" disabled={loading}><Plus size={17} /></button></form>
-      <div className="sidebar-bottom"><button onClick={() => openUtility("packs")}><Library size={16} /> Pack library</button><button onClick={() => setNotice("Table settings are managed locally.")}><Settings2 size={16} /> Table settings</button><div className="local-badge"><span /> Local server · private</div></div>
+      <div className="sidebar-bottom"><button onClick={() => openUtility("packs")}><Library size={16} /> Pack library</button><button onClick={() => openUtility("documents")}><BookOpen size={16} /> PDF library</button><button onClick={() => openUtility("profiles")}><Settings2 size={16} /> Model profiles</button><div className="local-badge"><span /> Local server · private</div></div>
     </aside>
     <main className="workspace">
       <header className="topbar"><div><span className="eyebrow">ACTIVE CHRONICLE</span><h1>{selected?.title || "No chronicle selected"}</h1></div><div className="top-actions"><span className="status-pill"><span /> {selected ? "TABLE OPEN" : "WAITING"}</span><button className="icon-button" title="Save chronicle" onClick={saveChronicle}><Save size={17} /></button><button className="icon-button" title="Open rulesets" onClick={() => setNotice(`${rulesets.length} rulesets installed.`)}><BookOpen size={17} /></button></div></header>
@@ -113,6 +115,6 @@ export function App() {
       </div>
     </main>
       {showSetup && selected && <div className="setup-overlay"><section className="setup-dialog"><div className="setup-header"><div><span className="eyebrow">SESSION ZERO</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setShowSetup(false)} title="Close setup">×</button></div><div className="setup-progress"><span className="done">01 CHRONICLE BIBLE</span><span>02 PLAYERS</span><span>03 OPENING SCENE</span></div><label>PREMISE<textarea value={bible?.premise || ""} readOnly /></label><label>PLAYER PITCH<textarea value={bible?.pitch_for_players || ""} readOnly /></label><div className="setup-columns"><div><span className="eyebrow">THEMES</span><div className="theme-list">{(bible?.themes || []).map((theme) => <span key={theme}>{theme}</span>)}</div></div><div><span className="eyebrow">OPENING SITUATION</span><p className="setup-opening">{bible?.opening_situation}</p></div></div><div className="setup-footer"><span className="notice">Review is local and saved to the campaign event log.</span><button className="primary-action" onClick={async () => { if (!selected) return; await api(`/campaigns/${selected.id}/session-zero/complete`, { method: "POST" }); setShowSetup(false); setNotice("Session zero complete. The opening scene is ready."); }}>Open the table <Sparkles size={15} /></button></div></section></div>}
-      {utility && <div className="setup-overlay"><section className="utility-dialog"><div className="setup-header"><div><span className="eyebrow">TABLE LIBRARY</span><h2>{utility === "packs" ? "Rulesets" : utility === "saves" ? "Named saves" : "Character sheets"}</h2></div><button className="icon-button" onClick={() => setUtility(null)} title="Close panel">×</button></div><div className="utility-list">{utilityItems.length === 0 && <p className="notice">Nothing saved here yet.</p>}{utilityItems.map((item, index) => <div className="utility-row" key={index}><b>{(item as Ruleset | Sheet).name || (item as { id?: string }).id || "Untitled"}</b><span>{(item as Ruleset).version || (item as Sheet).template_key || "ready"}</span></div>)}</div></section></div>}
+      {utility && <div className="setup-overlay"><section className="utility-dialog"><div className="setup-header"><div><span className="eyebrow">TABLE LIBRARY</span><h2>{utility === "packs" ? "Rulesets" : utility === "saves" ? "Named saves" : utility === "sheets" ? "Character sheets" : utility === "documents" ? "PDF library" : "Model profiles"}</h2></div><button className="icon-button" onClick={() => setUtility(null)} title="Close panel">×</button></div><div className="utility-list">{utilityItems.length === 0 && <p className="notice">Nothing saved here yet.</p>}{utilityItems.map((item, index) => <div className="utility-row" key={index}><b>{(item as Ruleset | Sheet).name || (item as { title?: string; id?: string }).title || (item as { id?: string }).id || "Untitled"}</b><span>{(item as Ruleset).version || (item as Sheet).template_key || (item as { genres?: string[] }).genres?.join(", ") || "ready"}</span></div>)}</div></section></div>}
   </div>;
 }
