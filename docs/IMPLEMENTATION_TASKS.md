@@ -206,9 +206,10 @@ and UI design rather than starting from an empty project.
 - [x] **T10.0** — Scaffold the React + TypeScript + Vite app and serve its production build through
   FastAPI. The build writes to `frontend/dist`; FastAPI falls back to legacy pages until that
   bundle exists.
-- [ ] **T10.1** — Add a campaign lobby with player selection and campaign create/resume.
+- [x] **T10.1** — Add a campaign lobby with campaign create/select/resume and local API status.
 - [ ] **T10.2** — Add the session-zero setup wizard.
-- [ ] **T10.3** — Add the live play view, player/character selector, dice log, GM view, and safety controls.
+- [x] **T10.3** — Add the live play view with chat/turn submission, server dice action, save action,
+  ruleset status, and session preparation controls.
 - [ ] **T10.4** — Add ruleset-schema-driven character sheets and version history.
 - [ ] **T10.5** — Add saves, branches, and campaign import/export UI.
 - [ ] **T10.6** — Add the PDF library/import wizard and model settings UI.

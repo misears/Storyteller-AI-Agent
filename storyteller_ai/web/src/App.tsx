@@ -55,6 +55,30 @@ export function App() {
     finally { setLoading(false); }
   }
 
+  async function saveChronicle() {
+    if (!selected) return;
+    try {
+      await api(`/campaigns/${selected.id}/saves`, { method: "POST", body: JSON.stringify({ name: `Save ${new Date().toLocaleTimeString()}` }) });
+      setNotice("Chronicle saved.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Save failed"); }
+  }
+
+  async function rollServerDice() {
+    if (!selected) return;
+    try {
+      const roll = await api<{ total?: number; successes?: number }>(`/campaigns/${selected.id}/dice`, { method: "POST", body: JSON.stringify({ expression: "1d20", reason: "player quick roll" }) });
+      setNotice(`Server roll recorded${roll.total === undefined ? "" : `: ${roll.total}`}.`);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Roll failed"); }
+  }
+
+  async function prepareSession() {
+    if (!selected) return;
+    try {
+      await api(`/campaigns/${selected.id}/session-zero/bible`, { method: "POST" });
+      setNotice("Session-zero bible generated. Review it through the campaign setup flow.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Setup failed"); }
+  }
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>STORYTELLER</strong><span>chronicle desk</span></div></div>
@@ -64,10 +88,10 @@ export function App() {
       <div className="sidebar-bottom"><button><Library size={16} /> Pack library</button><button><Settings2 size={16} /> Table settings</button><div className="local-badge"><span /> Local server · private</div></div>
     </aside>
     <main className="workspace">
-      <header className="topbar"><div><span className="eyebrow">ACTIVE CHRONICLE</span><h1>{selected?.title || "No chronicle selected"}</h1></div><div className="top-actions"><span className="status-pill"><span /> {selected ? "TABLE OPEN" : "WAITING"}</span><button className="icon-button" title="Save chronicle"><Save size={17} /></button><button className="icon-button" title="Open rulesets"><BookOpen size={17} /></button></div></header>
+      <header className="topbar"><div><span className="eyebrow">ACTIVE CHRONICLE</span><h1>{selected?.title || "No chronicle selected"}</h1></div><div className="top-actions"><span className="status-pill"><span /> {selected ? "TABLE OPEN" : "WAITING"}</span><button className="icon-button" title="Save chronicle" onClick={saveChronicle}><Save size={17} /></button><button className="icon-button" title="Open rulesets" onClick={() => setNotice(`${rulesets.length} rulesets installed.`)}><BookOpen size={17} /></button></div></header>
       <div className="content-grid">
         <section className="play-panel"><div className="scene-strip"><div><span className="eyebrow">CURRENT SCENE</span><h2>{selected ? "The table is waiting for a choice" : "Choose a chronicle"}</h2></div><div className="scene-meta"><span><Dice5 size={15} /> server dice</span><span><MessageSquare size={15} /> {messages.length} messages</span></div></div><div className="chat-log">{selected && messages.length === 0 && <div className="empty-state"><Sparkles size={25} /><p>Your opening scene is waiting.</p><small>Send an action below to begin the chronicle.</small></div>}{messages.map((message) => <article className={`message ${message.speaker_kind}`} key={message.id}><div className="message-label">{message.speaker_kind === "player" ? "YOU" : message.speaker_kind.toUpperCase()}</div><p>{message.content}</p></article>)}</div><form className="turn-composer" onSubmit={sendTurn}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} disabled={!selected || loading} placeholder={selected ? "What do you do?" : "Select a chronicle first"} /><button className="send-button" title="Send turn" disabled={!selected || loading || !draft.trim()}><Send size={18} /></button></form><div className="notice">{notice}</div></section>
-        <aside className="inspector"><div className="inspector-heading"><span className="eyebrow">TABLE CARD</span><Settings2 size={16} /></div><div className="card-rule" /><dl><div><dt>RULESET</dt><dd>{selected?.ruleset_id || "freeform"}</dd></div><div><dt>SETTING</dt><dd>{selected?.setting_pack_id || "default"}</dd></div><div><dt>MODE</dt><dd>{selected?.mode || "group"}</dd></div><div><dt>RULESETS INSTALLED</dt><dd>{rulesets.length || "--"}</dd></div></dl><div className="inspector-block"><span className="eyebrow">QUICK TOOLS</span><button><Dice5 size={15} /> Roll dice</button><button><Save size={15} /> Named save</button><button><BookOpen size={15} /> Look up rules</button></div></aside>
+        <aside className="inspector"><div className="inspector-heading"><span className="eyebrow">TABLE CARD</span><Settings2 size={16} /></div><div className="card-rule" /><dl><div><dt>RULESET</dt><dd>{selected?.ruleset_id || "freeform"}</dd></div><div><dt>SETTING</dt><dd>{selected?.setting_pack_id || "default"}</dd></div><div><dt>MODE</dt><dd>{selected?.mode || "group"}</dd></div><div><dt>RULESETS INSTALLED</dt><dd>{rulesets.length || "--"}</dd></div></dl><div className="inspector-block"><span className="eyebrow">QUICK TOOLS</span><button onClick={rollServerDice}><Dice5 size={15} /> Roll dice</button><button onClick={saveChronicle}><Save size={15} /> Named save</button><button onClick={prepareSession}><BookOpen size={15} /> Prepare session</button></div></aside>
       </div>
     </main>
   </div>;
