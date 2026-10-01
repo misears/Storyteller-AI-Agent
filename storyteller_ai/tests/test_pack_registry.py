@@ -63,3 +63,11 @@ def test_bundled_pack_wins_duplicate_id_and_version(tmp_path):
 
     assert len(registry.list()) == 1
     assert registry.list()[0].source == "bundled"
+
+
+def test_bundled_rulesets_validate():
+    registry = RulesetRegistry()
+
+    assert [entry.value.id for entry in registry.list()] == ["freeform", "pbta-generic"]
+    assert registry.issues() == []
+    assert registry.get("pbta-generic").dice.kind == "bands"

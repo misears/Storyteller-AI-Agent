@@ -110,7 +110,8 @@ and UI design rather than starting from an empty project.
 - [x] **T3.2** — Add the safe, allow-listed formula evaluator. Formulas use a bounded AST walker
   with arithmetic, comparisons, approved functions, and explicit helper injection; `eval`, imports,
   attributes, lambdas, and unapproved calls are rejected.
-- [ ] **T3.3** — Bundle the `freeform` and generic PbtA rulesets.
+- [x] **T3.3** — Bundle the `freeform` and generic PbtA rulesets. Both include self-authored
+  manifests and JSON Schemas and validate through the pack registry.
 - [ ] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack.
 - [ ] **T3.5** — Scope rule lookup to selected campaign PDFs and include page citations.
 - [ ] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.

@@ -1,0 +1,71 @@
+id: pbta-generic
+version: 1.0.0
+name: Generic Powered by the Apocalypse
+license: CC0-1.0
+attribution: Self-authored generic mechanics structure
+dice:
+  kind: bands
+  default_expression: 2d6+{stat}
+  bands:
+    - max: 6
+      outcome: failure
+      text: Miss
+    - min: 7
+      max: 9
+      outcome: partial
+      text: Success with a cost
+    - min: 10
+      outcome: success
+      text: Strong hit
+attributes:
+  - id: cool
+    label: Cool
+    min: -2
+    max: 3
+    default: 0
+  - id: hard
+    label: Hard
+    min: -2
+    max: 3
+    default: 0
+  - id: hot
+    label: Hot
+    min: -2
+    max: 3
+    default: 0
+  - id: sharp
+    label: Sharp
+    min: -2
+    max: 3
+    default: 0
+  - id: weird
+    label: Weird
+    min: -2
+    max: 3
+    default: 0
+resources:
+  - id: harm
+    label: Harm
+    min: 0
+    max: 6
+    default: 0
+checks:
+  - id: move
+    label: Make a move
+    expression: 2d6+{stat}
+turn_rules:
+  combat_turn_mode: freeform
+  actions_per_turn: {}
+chargen:
+  - id: stats
+    prompt: Assign the five listed ratings
+    fills:
+      - /attributes
+    constraints:
+      array: [2, 1, 1, 0, -1]
+npc_tiers: []
+prompt_digest: >-
+  Roll 2d6 plus the relevant stat when a move is triggered. A 10 or higher is a strong hit,
+  7-9 is a partial success with a cost, and 6 or less is a miss.
+family: pbta
+origin: bundled

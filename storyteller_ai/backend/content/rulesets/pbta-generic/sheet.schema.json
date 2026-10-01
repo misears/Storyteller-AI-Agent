@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "cool": {"type": "integer", "minimum": -2, "maximum": 3},
+        "hard": {"type": "integer", "minimum": -2, "maximum": 3},
+        "hot": {"type": "integer", "minimum": -2, "maximum": 3},
+        "sharp": {"type": "integer", "minimum": -2, "maximum": 3},
+        "weird": {"type": "integer", "minimum": -2, "maximum": 3}
+      },
+      "additionalProperties": false
+    },
+    "harm": {"type": "integer", "minimum": 0, "maximum": 6}
+  },
+  "additionalProperties": true
+}
