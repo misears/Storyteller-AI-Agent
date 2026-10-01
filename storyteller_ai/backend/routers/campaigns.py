@@ -12,6 +12,7 @@ from ..services.campaign_service import campaign_service
 from ..services.chat_service import chat_service
 from ..services.dice_service import dice_service
 from ..services.document_store import document_store
+from ..services.campaign_turn_service import campaign_turn_service
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -70,6 +71,14 @@ class RuleLookupResult(BaseModel):
 
 class RuleLookupResponse(BaseModel):
     results: list[RuleLookupResult]
+
+
+class CampaignTurnRequest(BaseModel):
+    content: str
+    character_id: str | None = None
+    player_id: str | None = None
+    client_msg_id: str | None = None
+    in_character: bool = True
 
 
 @router.post("/", response_model=Campaign)
@@ -156,3 +165,11 @@ def verify_campaign_dice(campaign_id: str, roll_id: str):
 def lookup_campaign_rules(campaign_id: str, payload: RuleLookupRequest):
     campaign = get_campaign(campaign_id)
     return {"results": document_store.retrieve_scoped(payload.query, campaign.source_document_ids)}
+
+
+@router.post("/{campaign_id}/turns")
+async def submit_campaign_turn(campaign_id: str, payload: CampaignTurnRequest):
+    campaign = get_campaign(campaign_id)
+    return await campaign_turn_service.submit(
+        campaign, payload.content, Actor(kind="player", id=payload.player_id),
+    )

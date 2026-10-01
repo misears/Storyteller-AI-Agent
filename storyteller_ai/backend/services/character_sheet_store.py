@@ -233,7 +233,10 @@ class CharacterSheetStore:
             "fields": merged_fields,
             "created_at": now,
             "updated_at": now,
+            "version": 1,
+            "history": [],
         }
+        self._validate_fields(template, merged_fields)
 
         with self._lock:
             self._payload.setdefault("sheets", {})[sheet_id] = sheet
@@ -251,19 +254,77 @@ class CharacterSheetStore:
         sheet_id: str,
         name: Optional[str] = None,
         fields: Optional[Dict[str, Any]] = None,
+        expected_version: Optional[int] = None,
+        reason: str = "sheet update",
     ) -> Dict[str, Any]:
         with self._lock:
             sheet = self.get_sheet(sheet_id)
+            current_version = sheet.get("version", 1)
+            if expected_version is not None and expected_version != current_version:
+                raise SheetConflictError(current_version)
+            previous = {
+                "version": current_version,
+                "name": sheet.get("name"),
+                "fields": dict(sheet.get("fields", {})),
+                "updated_at": sheet.get("updated_at"),
+                "reason": reason,
+            }
             if name is not None:
                 sheet["name"] = name
             if fields is not None:
                 current_fields = dict(sheet.get("fields", {}))
                 current_fields.update(fields)
+                self._validate_fields(self.get_template(sheet["template_key"]), current_fields)
                 sheet["fields"] = current_fields
+            sheet["version"] = current_version + 1
+            sheet.setdefault("history", []).append(previous)
             sheet["updated_at"] = _utc_now_iso()
             self._payload.setdefault("sheets", {})[sheet_id] = sheet
             self._write_payload()
         return sheet
+
+    def list_history(self, sheet_id: str) -> List[Dict[str, Any]]:
+        return list(self.get_sheet(sheet_id).get("history", []))
+
+    def revert_sheet(self, sheet_id: str, version: int, expected_version: Optional[int] = None) -> Dict[str, Any]:
+        with self._lock:
+            sheet = self.get_sheet(sheet_id)
+            current_version = sheet.get("version", 1)
+            if expected_version is not None and expected_version != current_version:
+                raise SheetConflictError(current_version)
+            snapshot = next((item for item in sheet.get("history", []) if item["version"] == version), None)
+            if snapshot is None:
+                raise KeyError(f"Sheet version {version} not found")
+            self._validate_fields(self.get_template(sheet["template_key"]), snapshot["fields"])
+            sheet["history"].append({
+                "version": current_version, "name": sheet.get("name"),
+                "fields": dict(sheet.get("fields", {})), "updated_at": sheet.get("updated_at"),
+                "reason": f"revert to version {version}",
+            })
+            sheet["name"] = snapshot["name"]
+            sheet["fields"] = dict(snapshot["fields"])
+            sheet["version"] = current_version + 1
+            sheet["updated_at"] = _utc_now_iso()
+            self._write_payload()
+            return sheet
+
+    @staticmethod
+    def _validate_fields(template: Dict[str, Any], fields: Dict[str, Any]) -> None:
+        for definition in template.get("field_schema", []):
+            name = definition.get("name")
+            value = fields.get(name)
+            if definition.get("type") == "number" and value is not None and not isinstance(value, (int, float)):
+                raise SheetValidationError(f"field '{name}' must be numeric")
+
+
+class SheetConflictError(ValueError):
+    def __init__(self, current_version: int):
+        super().__init__(f"sheet version conflict; current version is {current_version}")
+        self.current_version = current_version
+
+
+class SheetValidationError(ValueError):
+    pass
 
 
 character_sheet_store = CharacterSheetStore(STORE_PATH)
