@@ -6,6 +6,7 @@ from httpx2 import ASGITransport, AsyncClient
 
 import fitz
 from backend.main import app
+from backend.services.session_manager import session_manager
 
 
 def _run_async(coroutine):
@@ -47,6 +48,63 @@ def test_session_create(monkeypatch):
     body = response.json()
     assert "session_id" in body
     assert body["mode"] == "group"
+
+
+def test_campaign_persists_after_session_cache_reset(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    response = _run_async(_submit_request("post", "/campaigns/", json={"title": "Midnight"}))
+    assert response.status_code == 200
+    campaign_id = response.json()["id"]
+
+    monkeypatch.setattr(session_manager, "sessions", {})
+    campaign = _run_async(_submit_request("get", f"/campaigns/{campaign_id}"))
+    session = _run_async(_submit_request("get", f"/sessions/{campaign_id}"))
+    assert campaign.status_code == 200
+    assert session.status_code == 200
+    assert session.json()["state"]["campaign"]["title"] == "Midnight"
+    assert session_manager.get_loop(campaign_id) is session_manager.get_session(campaign_id)["gm_loop"]
+
+
+def test_legacy_character_survives_session_cache_reset(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    campaign_id = _run_async(_submit_request("post", "/sessions/create", json={"mode": "group"})).json()["session_id"]
+    added = _run_async(_submit_request("post", f"/sessions/{campaign_id}/characters", json={"name": "Mina"}))
+    assert added.status_code == 200
+
+    monkeypatch.setattr(session_manager, "sessions", {})
+    status = _run_async(_submit_request("get", f"/sessions/{campaign_id}"))
+    assert status.status_code == 200
+    assert status.json()["state"]["characters"] == [{"name": "Mina", "clan": None, "notes": None}]
+
+
+def test_chat_paging_and_client_idempotency():
+    created = _run_async(_submit_request("post", "/campaigns/", json={"title": "Chat test"}))
+    campaign_id = created.json()["id"]
+    first = _run_async(_submit_request("post", f"/campaigns/{campaign_id}/chat", json={
+        "content": "First", "client_msg_id": "client-1",
+    }))
+    duplicate = _run_async(_submit_request("post", f"/campaigns/{campaign_id}/chat", json={
+        "content": "First", "client_msg_id": "client-1",
+    }))
+    second = _run_async(_submit_request("post", f"/campaigns/{campaign_id}/chat", json={
+        "content": "Second", "client_msg_id": "client-2", "speaker_kind": "gm",
+        "session_id": "session-2", "scene_id": "scene-2",
+    }))
+    assert first.status_code == duplicate.status_code == second.status_code == 200
+    assert first.json()["id"] == duplicate.json()["id"]
+
+    page = _run_async(_submit_request("get", f"/campaigns/{campaign_id}/chat", json={"limit": 1}))
+    assert [item["content"] for item in page.json()["messages"]] == ["First"]
+    cursor = page.json()["next_after_seq"]
+    later = _run_async(_submit_request("get", f"/campaigns/{campaign_id}/chat", json={
+        "after_seq": cursor, "limit": 1,
+    }))
+    assert [item["content"] for item in later.json()["messages"]] == ["Second"]
+    assert later.json()["next_after_seq"] is None
+    filtered = _run_async(_submit_request("get", f"/campaigns/{campaign_id}/chat", json={
+        "speaker_kind": "gm", "session_id": "session-2", "scene_id": "scene-2",
+    }))
+    assert [item["id"] for item in filtered.json()["messages"]] == [second.json()["id"]]
 
 
 def test_gm_step_with_mock_provider(monkeypatch):

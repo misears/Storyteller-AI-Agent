@@ -1,0 +1,1 @@
+"""Rules and dice primitives shared by campaign services."""

@@ -84,15 +84,17 @@ and UI design rather than starting from an empty project.
 ### M1 — Persistence & event log
 
 - [x] **T1.1** — Add SQLAlchemy, Alembic, database setup, and startup migrations.
-- [ ] **T1.2** — Add the domain models and schema round-trip tests.
-- [ ] **T1.3** — Add the append-only event store and atomic turn unit of work.
-- [ ] **T1.4** — Add event reducers and projectors.
-- [ ] **T1.5** — Add campaign services and campaign endpoints; back the sessions compatibility API with the database.
-- [ ] **T1.6** — Persist and expose the paginated, idempotent chat log.
+- [x] **T1.2** — Add the domain models and schema round-trip tests.
+- [x] **T1.3** — Add the append-only event store and atomic turn unit of work.
+- [x] **T1.4** — Add event reducers and projectors.
+- [x] **T1.5** — Add campaign services and campaign endpoints; back the sessions compatibility API with the database.
+- [x] **T1.6** — Persist and expose the paginated, idempotent chat log.
 
 ### M2 — Dice engine
 
-- [ ] **T2.1** — Add a bounded dice-expression parser.
+- [x] **T2.1** — Add a bounded dice-expression parser. Added a hand-written parser with the
+  documented grammar, references, keep/drop, explode, reroll, success/failure modifiers, and
+  bounded dice/sides limits, with focused regression coverage in `tests/test_dice_parser.py`.
 - [ ] **T2.2** — Add deterministic, verifiable counter-based RNG.
 - [ ] **T2.3** — Implement the ruleset dice mechanic interpreters and preserve the legacy shim.
 - [ ] **T2.4** — Persist dice events and expose the dice log and roll endpoints.

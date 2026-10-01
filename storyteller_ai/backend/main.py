@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from .persistence.db import upgrade_database
-from .routers import character_sheets, documents, gm, sessions, settings
+from .routers import campaigns, character_sheets, documents, gm, sessions, settings
 from .services.browser_launcher import launch_browser_when_ready
 from .services.app_paths import get_frontend_dir
 
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(documents.router)
 app.include_router(gm.router)
 app.include_router(sessions.router)
+app.include_router(campaigns.router)
 app.include_router(character_sheets.router)
 app.include_router(settings.router)
 

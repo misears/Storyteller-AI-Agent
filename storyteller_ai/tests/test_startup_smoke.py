@@ -67,5 +67,6 @@ def test_empty_data_dir_migrates_campaign_database(tmp_path, monkeypatch):
             assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == head_revision
             assert connection.exec_driver_sql("PRAGMA journal_mode").scalar() == "wal"
             assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
+            assert connection.exec_driver_sql("SELECT name FROM sqlite_master WHERE name = 'events'").scalar() == "events"
     finally:
         engine.dispose()
