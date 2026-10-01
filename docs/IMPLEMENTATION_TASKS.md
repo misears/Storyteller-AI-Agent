@@ -227,7 +227,8 @@ and UI design rather than starting from an empty project.
   1.63 ms on the development machine.
 - [x] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
   PyInstaller was built successfully with frontend assets, `backend/content`, and migrations.
-- [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
+- [x] **T11.4** — Review the pack-authoring, player, and operator guides. Added focused guides for
+  local operation, player workflows, and safe data-only pack authoring.
 - [ ] **T11.5** — Complete scripted and real multi-session local play; record owner sign-off.
 
 **Phase 1 complete gate:** Python tests and ruff, pack validation, migrations, replay, scripted
