@@ -17,6 +17,7 @@ dist/
 **/build/
 **/dist/
 **/node_modules/
+**/*.tsbuildinfo
 *.egg-info/
 
 # Tooling/test caches
