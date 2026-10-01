@@ -1,0 +1,9 @@
+{
+  "scenario": "storyteller-max-context",
+  "context_window_tokens": 16384,
+  "max_output_tokens": 1500,
+  "input_tokens": 12000,
+  "characters_per_estimated_token": 4,
+  "system_prompt": "You are the Storyteller for a long-running tabletop chronicle. Respect player agency, safety boundaries, established facts, visibility, and rules. Use tools for uncertain outcomes and never invent dice results. Give concise, vivid narration grounded in the complete context.",
+  "latest_turn": "Resolve the player's latest action using the campaign history, active scene, current rules, character facts, factions, secrets, safety boundaries, and prior outcomes. Explain only the public consequences and end with a clear prompt for the next action."
+}
