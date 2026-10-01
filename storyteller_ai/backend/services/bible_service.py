@@ -21,7 +21,7 @@ class BibleService:
                 opening_situation="The first sign of trouble arrives at the table.",
             )
         if section is not None:
-            if section not in current.model_fields:
+            if section not in CampaignBible.model_fields:
                 raise ValueError(f"unknown bible section: {section}")
             return current
         self._persist(campaign, current, "bible.generated")
@@ -34,7 +34,7 @@ class BibleService:
         current = self._current(campaign)
         if current is None:
             current = self.generate(campaign)
-        if section not in current.model_fields:
+        if section not in CampaignBible.model_fields:
             raise ValueError(f"unknown bible section: {section}")
         data = current.model_dump()
         data[section] = value

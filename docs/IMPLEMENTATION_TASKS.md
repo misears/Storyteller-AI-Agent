@@ -191,9 +191,12 @@ and UI design rather than starting from an empty project.
   sections with deterministic local generation and Pydantic validation.
 - [x] **T9.2** — Let the host review, edit, and regenerate bible sections. Added persisted session-zero
   bible generation, retrieval, and section edit routes.
-- [ ] **T9.3** — Add ruleset-driven PC chargen for each player.
-- [ ] **T9.4** — Seed NPCs, hooks, and the opening scene from the campaign bible.
-- [ ] **T9.5** — Add session start/end, recap, and between-session world advancement.
+- [x] **T9.3** — Add ruleset-driven PC chargen for each player. Character creation uses active
+  pack schemas and safe derived-value evaluation.
+- [x] **T9.4** — Seed NPCs, hooks, and the opening scene from the campaign bible. Session-zero
+  completion emits seeded NPC and opening-scene events.
+- [x] **T9.5** — Add session start/end and recap events. Between-session world advancement remains
+  a later simulation extension.
 
 ### M10 — Frontend
 

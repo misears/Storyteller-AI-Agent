@@ -15,6 +15,7 @@ from ..services.document_store import document_store
 from ..services.campaign_turn_service import campaign_turn_service
 from ..services.save_service import save_service
 from ..services.bible_service import bible_service
+from ..services.session_zero_service import session_zero_service
 from fastapi.responses import Response
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -90,6 +91,14 @@ class SaveRequest(BaseModel):
 
 class BibleEditRequest(BaseModel):
     value: object
+
+
+class SessionStartRequest(BaseModel):
+    attendee_player_ids: list[str] = Field(default_factory=list)
+
+
+class SessionEndRequest(BaseModel):
+    recap: str = ""
 
 
 @router.post("/", response_model=Campaign)
@@ -236,3 +245,21 @@ def edit_bible(campaign_id: str, section: str, payload: BibleEditRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"bible": bible.model_dump(mode="json")}
+
+
+@router.post("/{campaign_id}/session-zero/complete")
+def complete_session_zero(campaign_id: str):
+    try:
+        return session_zero_service.complete(get_campaign(campaign_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/{campaign_id}/sessions")
+def start_campaign_session(campaign_id: str, payload: SessionStartRequest):
+    return session_zero_service.start_session(get_campaign(campaign_id), payload.attendee_player_ids)
+
+
+@router.post("/{campaign_id}/sessions/{session_id}/end")
+def end_campaign_session(campaign_id: str, session_id: str, payload: SessionEndRequest):
+    return session_zero_service.end_session(get_campaign(campaign_id), session_id, payload.recap)
