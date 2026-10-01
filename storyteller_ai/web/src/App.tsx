@@ -5,7 +5,7 @@ type Campaign = { id: string; title: string; status: string; mode: string; rules
 type ChatMessage = { id: string; speaker_kind: string; content: string; seq: number };
 type Ruleset = { id: string; name: string; version: string; mechanic?: string };
 type Bible = { premise: string; pitch_for_players: string; themes: string[]; opening_situation: string };
-type Sheet = { sheet_id: string; name: string; template_key: string; version?: number };
+type Sheet = { sheet_id: string; name: string; template_key: string; version?: number; fields?: Record<string, string | number>; field_schema?: { name: string; label?: string; type?: string }[] };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init });
@@ -26,6 +26,7 @@ export function App() {
   const [bible, setBible] = useState<Bible | null>(null);
   const [utility, setUtility] = useState<"packs" | "saves" | "sheets" | "documents" | "profiles" | null>(null);
   const [utilityItems, setUtilityItems] = useState<unknown[]>([]);
+  const [activeSheet, setActiveSheet] = useState<Sheet | null>(null);
 
   async function refresh() {
     const [campaignData, rulesetData] = await Promise.all([
@@ -99,6 +100,17 @@ export function App() {
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not load panel"); }
   }
 
+  async function openSheet(sheet: Sheet) {
+    const result = await api<{ sheet: Sheet }>(`/character-sheets/${sheet.sheet_id}`);
+    setActiveSheet(result.sheet);
+  }
+
+  async function saveSheet() {
+    if (!activeSheet) return;
+    const result = await api<{ sheet: Sheet }>(`/character-sheets/${activeSheet.sheet_id}`, { method: "PUT", body: JSON.stringify({ fields: activeSheet.fields, expected_version: activeSheet.version }) });
+    setActiveSheet(result.sheet); setNotice("Character sheet saved.");
+  }
+
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><Sparkles size={17} /></div><div><strong>STORYTELLER</strong><span>chronicle desk</span></div></div>
@@ -115,6 +127,6 @@ export function App() {
       </div>
     </main>
       {showSetup && selected && <div className="setup-overlay"><section className="setup-dialog"><div className="setup-header"><div><span className="eyebrow">SESSION ZERO</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setShowSetup(false)} title="Close setup">×</button></div><div className="setup-progress"><span className="done">01 CHRONICLE BIBLE</span><span>02 PLAYERS</span><span>03 OPENING SCENE</span></div><label>PREMISE<textarea value={bible?.premise || ""} readOnly /></label><label>PLAYER PITCH<textarea value={bible?.pitch_for_players || ""} readOnly /></label><div className="setup-columns"><div><span className="eyebrow">THEMES</span><div className="theme-list">{(bible?.themes || []).map((theme) => <span key={theme}>{theme}</span>)}</div></div><div><span className="eyebrow">OPENING SITUATION</span><p className="setup-opening">{bible?.opening_situation}</p></div></div><div className="setup-footer"><span className="notice">Review is local and saved to the campaign event log.</span><button className="primary-action" onClick={async () => { if (!selected) return; await api(`/campaigns/${selected.id}/session-zero/complete`, { method: "POST" }); setShowSetup(false); setNotice("Session zero complete. The opening scene is ready."); }}>Open the table <Sparkles size={15} /></button></div></section></div>}
-      {utility && <div className="setup-overlay"><section className="utility-dialog"><div className="setup-header"><div><span className="eyebrow">TABLE LIBRARY</span><h2>{utility === "packs" ? "Rulesets" : utility === "saves" ? "Named saves" : utility === "sheets" ? "Character sheets" : utility === "documents" ? "PDF library" : "Model profiles"}</h2></div><button className="icon-button" onClick={() => setUtility(null)} title="Close panel">×</button></div><div className="utility-list">{utilityItems.length === 0 && <p className="notice">Nothing saved here yet.</p>}{utilityItems.map((item, index) => <div className="utility-row" key={index}><b>{(item as Ruleset | Sheet).name || (item as { title?: string; id?: string }).title || (item as { id?: string }).id || "Untitled"}</b><span>{(item as Ruleset).version || (item as Sheet).template_key || (item as { genres?: string[] }).genres?.join(", ") || "ready"}</span></div>)}</div></section></div>}
+      {utility && <div className="setup-overlay"><section className="utility-dialog"><div className="setup-header"><div><span className="eyebrow">TABLE LIBRARY</span><h2>{utility === "packs" ? "Rulesets" : utility === "saves" ? "Named saves" : utility === "sheets" ? "Character sheets" : utility === "documents" ? "PDF library" : "Model profiles"}</h2></div><button className="icon-button" onClick={() => { setUtility(null); setActiveSheet(null); }} title="Close panel">×</button></div><div className="utility-list">{utilityItems.length === 0 && <p className="notice">Nothing saved here yet.</p>}{utilityItems.map((item, index) => <button className="utility-row" key={index} onClick={() => utility === "sheets" ? openSheet(item as Sheet) : undefined}><b>{(item as Ruleset | Sheet).name || (item as { title?: string; id?: string }).title || (item as { id?: string }).id || "Untitled"}</b><span>{(item as Ruleset).version || (item as Sheet).template_key || (item as { genres?: string[] }).genres?.join(", ") || "ready"}</span></button>)}</div>{activeSheet && <div className="sheet-editor"><span className="eyebrow">SHEET V{activeSheet.version || 1}</span>{(activeSheet.field_schema || []).map((field) => <label key={field.name}>{field.label || field.name}<input type={field.type === "number" ? "number" : "text"} value={String(activeSheet.fields?.[field.name] ?? "")} onChange={(event) => setActiveSheet({ ...activeSheet, fields: { ...activeSheet.fields, [field.name]: field.type === "number" ? Number(event.target.value) : event.target.value } })} /></label>)}<button className="primary-action" onClick={saveSheet}>Save sheet <Save size={15} /></button></div>}</section></div>}
   </div>;
 }
