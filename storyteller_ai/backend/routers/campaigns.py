@@ -16,7 +16,11 @@ from ..services.campaign_turn_service import campaign_turn_service
 from ..services.save_service import save_service
 from ..services.bible_service import bible_service
 from ..services.session_zero_service import session_zero_service
-from fastapi.responses import Response
+from ..services.multiplayer_service import multiplayer_service
+from fastapi.responses import Response, StreamingResponse
+import json
+from ..persistence.db import create_campaign_engine
+from ..persistence.event_store import EventStore
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -99,6 +103,19 @@ class SessionStartRequest(BaseModel):
 
 class SessionEndRequest(BaseModel):
     recap: str = ""
+
+
+class PlayerJoinRequest(BaseModel):
+    display_name: str
+    role: Literal["player", "human_gm", "observer"] = "player"
+
+
+class PlayerStatusRequest(BaseModel):
+    status: Literal["active", "away", "left"]
+
+
+class CharacterSelectRequest(BaseModel):
+    character_id: str
 
 
 @router.post("/", response_model=Campaign)
@@ -263,3 +280,51 @@ def start_campaign_session(campaign_id: str, payload: SessionStartRequest):
 @router.post("/{campaign_id}/sessions/{session_id}/end")
 def end_campaign_session(campaign_id: str, session_id: str, payload: SessionEndRequest):
     return session_zero_service.end_session(get_campaign(campaign_id), session_id, payload.recap)
+
+
+@router.post("/{campaign_id}/players")
+def join_campaign_player(campaign_id: str, payload: PlayerJoinRequest):
+    campaign = get_campaign(campaign_id)
+    try:
+        return multiplayer_service.join(campaign.id, campaign.active_branch_id, payload.display_name, payload.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.patch("/{campaign_id}/players/{player_id}")
+def update_campaign_player(campaign_id: str, player_id: str, payload: PlayerStatusRequest):
+    campaign = get_campaign(campaign_id)
+    multiplayer_service.set_status(campaign.id, campaign.active_branch_id, player_id, payload.status)
+    return {"player_id": player_id, "status": payload.status}
+
+
+@router.post("/{campaign_id}/players/{player_id}/character")
+def select_campaign_character(campaign_id: str, player_id: str, payload: CharacterSelectRequest):
+    campaign = get_campaign(campaign_id)
+    try:
+        membership = multiplayer_service.select_character(
+            campaign.id, campaign.active_branch_id, player_id, payload.character_id,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return membership
+
+
+@router.get("/{campaign_id}/stream")
+def stream_campaign_events(campaign_id: str, last_event_id: int = 0, viewer: Literal["player", "gm"] = "player"):
+    campaign = get_campaign(campaign_id)
+    engine = create_campaign_engine()
+    try:
+        events = EventStore(engine).read(campaign.id, campaign.active_branch_id, last_event_id)
+    finally:
+        engine.dispose()
+
+    def generate():
+        for event in events:
+            payload = event.payload
+            visibility = payload.get("visibility", {}) if isinstance(payload, dict) else {}
+            if visibility.get("scope") == "gm_only" and viewer != "gm":
+                payload = {"visibility": {"scope": "gm_only"}, "redacted": True}
+            yield f"id: {event.seq}\nevent: {event.type}\ndata: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

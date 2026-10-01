@@ -179,11 +179,14 @@ and UI design rather than starting from an empty project.
 
 ### M8 — Multiplayer on one computer
 
-- [ ] **T8.1** — Add local accounts, players, memberships, character selection, and authority rules.
-- [ ] **T8.2** — Add visibility-filtered SSE broadcasting and reconnect replay.
-- [ ] **T8.3** — Add turn policies, timeouts, and the 10-player cap.
-- [ ] **T8.4** — Add spotlight tracking and GM guidance for overlooked players.
-- [ ] **T8.5** — Support joining/leaving, absent characters, and mode changes during a campaign.
+- [x] **T8.1** — Add local accounts, players, memberships, character selection, and authority rules.
+  Local membership events enforce ownership boundaries and the active-player cap.
+- [x] **T8.2** — Add visibility-filtered SSE broadcasting and reconnect replay. Committed events
+  replay after `Last-Event-ID` with GM-only payload redaction.
+- [x] **T8.3** — Add turn policies, timeouts, and the 10-player cap.
+- [x] **T8.4** — Add spotlight tracking and GM guidance for overlooked players.
+- [x] **T8.5** — Support joining/leaving, absent characters, and mode changes during a campaign.
+  Status transitions and solo/group mode derivation are available locally.
 
 ### M9 — Session zero & campaign generation
 
