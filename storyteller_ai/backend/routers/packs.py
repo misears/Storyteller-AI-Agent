@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..rules.registry import pack_registry
+from ..services.pack_importer import pack_importer
 
 router = APIRouter(tags=["packs"])
 
@@ -69,3 +70,53 @@ def get_theme(theme_id: str, version: str | None = None):
     if theme is None:
         raise HTTPException(status_code=404, detail="Theme not found")
     return theme.model_dump(mode="json")
+
+
+class ImportStartRequest(BaseModel):
+    document_ids: list[str]
+    mode: str = "new"
+    target_pack_id: str | None = None
+
+
+class ImportAnswersRequest(BaseModel):
+    fields: dict[str, Any]
+
+
+@router.post("/rulesets/imports")
+def start_pack_import(payload: ImportStartRequest):
+    try:
+        return pack_importer.start(payload.document_ids, payload.mode, payload.target_pack_id).model_dump(mode="json")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/rulesets/imports/{job_id}")
+def get_pack_import(job_id: str):
+    try:
+        return pack_importer.get(job_id).model_dump(mode="json")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/rulesets/imports/{job_id}/answers")
+def answer_pack_import(job_id: str, payload: ImportAnswersRequest):
+    try:
+        return pack_importer.answer(job_id, payload.fields).model_dump(mode="json")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/rulesets/imports/{job_id}/validate")
+def validate_pack_import(job_id: str):
+    try:
+        return pack_importer.validate(job_id).model_dump(mode="json")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/rulesets/imports/{job_id}/commit")
+def commit_pack_import(job_id: str):
+    try:
+        return pack_importer.commit(job_id).model_dump(mode="json")
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

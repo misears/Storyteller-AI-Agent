@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "faith": {"type": "integer", "minimum": 0, "maximum": 10},
+    "torment": {"type": "integer", "minimum": 0, "maximum": 10}
+  },
+  "required": ["name"],
+  "additionalProperties": true
+}

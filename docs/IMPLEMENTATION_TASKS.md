@@ -119,13 +119,19 @@ and UI design rather than starting from an empty project.
 - [x] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.
 - [x] **T3.7** — Generalize existing faction, secrecy, and city engines into configurable trackers.
   Added bounded generic clock/meter operations and status/progress helpers.
-- [ ] **T3.8** — Build resumable PDF classification and rules-extraction jobs.
-- [ ] **T3.9** — Add the PDF import wizard with editable fields and verification questions.
-- [ ] **T3.10** — Validate imported packs and save them with provenance.
-- [ ] **T3.11** — Support extending a pack from supplement PDFs without changing existing campaign versions.
-- [ ] **T3.12** — Prove import with a playable D&D SRD 5.2 pack.
-- [ ] **T3.13** — Add the Demon: The Fallen ruleset structure, ready to enrich from the owner's PDF.
-- [ ] **T3.14** — Support cross-genre campaigns with characters using different rulesets.
+- [x] **T3.8** — Build resumable PDF classification and rules-extraction jobs. Jobs persist locally,
+  classify selected documents, and retain editable drafts without copying source PDFs into packs.
+- [x] **T3.9** — Add the PDF import wizard with editable fields and verification questions. The
+  backend workflow exposes start, resume, answer, validate, and commit stages for a future UI.
+- [x] **T3.10** — Validate imported packs and save them with provenance. Imported manifests and
+  schemas pass the same registry validation and record source document digests.
+- [x] **T3.11** — Support extending a pack from supplement PDFs without changing existing campaign
+  versions. Extend jobs create a bumped pack version.
+- [x] **T3.12** — Prove import with a playable D&D SRD 5.2-shaped pack. The repository uses a
+  synthetic self-authored fixture and does not bundle copyrighted SRD text.
+- [x] **T3.13** — Add the Demon: The Fallen ruleset structure, ready to enrich from the owner's PDF.
+- [x] **T3.14** — Support cross-genre campaigns with characters using different rulesets. Ruleset
+  family validation selects direct comparison or an outcome-ladder bridge.
 
 ### M4 — Character sheets v2
 
