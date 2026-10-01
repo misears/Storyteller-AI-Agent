@@ -10,6 +10,7 @@ from .services.browser_launcher import launch_browser_when_ready
 from .services.app_paths import get_frontend_dir
 
 FRONTEND_DIR = get_frontend_dir()
+FRONTEND_SERVE_DIR = FRONTEND_DIR / "dist" if (FRONTEND_DIR / "dist").exists() else FRONTEND_DIR
 CORS_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
@@ -50,4 +51,4 @@ async def health():
     return {"status": "ok"}
 
 
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+app.mount("/", StaticFiles(directory=FRONTEND_SERVE_DIR, html=True), name="frontend")

@@ -16,6 +16,7 @@ build/
 dist/
 **/build/
 **/dist/
+**/node_modules/
 *.egg-info/
 
 # Tooling/test caches

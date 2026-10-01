@@ -203,7 +203,9 @@ and UI design rather than starting from an empty project.
 
 ### M10 — Frontend
 
-- [ ] **T10.0** — Scaffold the React + TypeScript + Vite app and serve its production build through FastAPI.
+- [x] **T10.0** — Scaffold the React + TypeScript + Vite app and serve its production build through
+  FastAPI. The build writes to `frontend/dist`; FastAPI falls back to legacy pages until that
+  bundle exists.
 - [ ] **T10.1** — Add a campaign lobby with player selection and campaign create/resume.
 - [ ] **T10.2** — Add the session-zero setup wizard.
 - [ ] **T10.3** — Add the live play view, player/character selector, dice log, GM view, and safety controls.
