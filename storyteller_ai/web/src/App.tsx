@@ -36,6 +36,19 @@ export function App() {
   }
   useEffect(() => { refresh().catch((error) => setNotice(error.message)); }, []);
 
+  useEffect(() => {
+    if (!selected) return;
+    const stream = new EventSource(`/campaigns/${selected.id}/stream?last_event_id=0&viewer=player`);
+    stream.addEventListener("message.posted", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as Partial<ChatMessage>;
+      if (payload.content && payload.id) {
+        setMessages((current) => current.some((message) => message.id === payload.id) ? current : [...current, payload as ChatMessage]);
+      }
+    });
+    stream.onerror = () => setNotice("Live stream reconnecting...");
+    return () => stream.close();
+  }, [selected?.id]);
+
   async function openCampaign(campaign: Campaign) {
     setSelected(campaign); setNotice("Loading the latest table state...");
     const page = await api<{ messages: ChatMessage[] }>(`/campaigns/${campaign.id}/chat`);
