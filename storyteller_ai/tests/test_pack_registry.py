@@ -68,6 +68,18 @@ def test_bundled_pack_wins_duplicate_id_and_version(tmp_path):
 def test_bundled_rulesets_validate():
     registry = RulesetRegistry()
 
-    assert [entry.value.id for entry in registry.list()] == ["freeform", "pbta-generic"]
+    assert [entry.value.id for entry in registry.list()] == ["freeform", "pbta-generic", "vtm-revised"]
     assert registry.issues() == []
     assert registry.get("pbta-generic").dice.kind == "bands"
+
+
+def test_vtm_ruleset_and_city_setting_validate():
+    rulesets = RulesetRegistry()
+    settings = SettingRegistry()
+
+    assert rulesets.get("vtm-revised").family == "storyteller-classic"
+    city = settings.get("wod-city-nights")
+    assert city.compatible_rulesets == ["vtm-revised"]
+    assert {tracker.id for tracker in city.trackers} == {"masquerade", "camarilla", "anarchs"}
+    assert rulesets.issues() == []
+    assert settings.issues() == []

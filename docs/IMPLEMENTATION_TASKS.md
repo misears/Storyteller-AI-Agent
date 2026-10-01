@@ -112,7 +112,8 @@ and UI design rather than starting from an empty project.
   attributes, lambdas, and unapproved calls are rejected.
 - [x] **T3.3** — Bundle the `freeform` and generic PbtA rulesets. Both include self-authored
   manifests and JSON Schemas and validate through the pack registry.
-- [ ] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack.
+- [x] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack. Bundled structure is
+  self-authored, pins the `storyteller-classic` family, and contains no extracted rulebook prose.
 - [ ] **T3.5** — Scope rule lookup to selected campaign PDFs and include page citations.
 - [ ] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.
 - [ ] **T3.7** — Generalize existing faction, secrecy, and city engines into configurable trackers.
