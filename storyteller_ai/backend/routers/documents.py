@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from ..services.document_store import document_store
-from ..services.pdf_ingest import extract_text_from_pdf, get_ocr_runtime_status
+from ..services.pdf_ingest import extract_pages_from_pdf, get_ocr_runtime_status
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 logger = logging.getLogger(__name__)
@@ -40,6 +40,17 @@ class RetrieveRequest(BaseModel):
 
 class RetrieveResponse(BaseModel):
     results: str
+
+
+class ScopedRetrieveResult(BaseModel):
+    document_id: str
+    title: str
+    page: int
+    snippet: str
+
+
+class ScopedRetrieveResponse(BaseModel):
+    results: List[ScopedRetrieveResult]
 
 
 class DeleteDocumentResponse(BaseModel):
@@ -95,13 +106,15 @@ async def upload_document(
             raise HTTPException(status_code=400, detail=f"Only PDF files are supported: {file.filename}")
 
         contents = await file.read()
-        text = extract_text_from_pdf(io.BytesIO(contents))
+        page_chunks = extract_pages_from_pdf(io.BytesIO(contents))
+        text = "\n\n".join(page_chunks)
         document_id = document_store.add_document(
             document_id=file.filename,
             title=file.filename,
             text=text,
             pdf_bytes=contents,
             genres=parsed_genres,
+            page_chunks=page_chunks,
         )
         documents.append(
             {
@@ -123,6 +136,12 @@ def list_documents() -> DocumentListResponse:
 @router.post("/retrieve", response_model=RetrieveResponse)
 def retrieve_documents(payload: RetrieveRequest) -> RetrieveResponse:
     results = document_store.retrieve(payload.query)
+    return {"results": results}
+
+
+@router.post("/retrieve-scoped", response_model=ScopedRetrieveResponse)
+def retrieve_scoped_documents(query: str, document_ids: List[str]) -> ScopedRetrieveResponse:
+    results = document_store.retrieve_scoped(query, document_ids)
     return {"results": results}
 
 

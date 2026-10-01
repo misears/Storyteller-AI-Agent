@@ -35,6 +35,11 @@ def get_ocr_runtime_status() -> tuple[bool, str]:
 
 
 def extract_text_from_pdf(stream: io.BytesIO) -> str:
+    return "\n\n".join(extract_pages_from_pdf(stream))
+
+
+def extract_pages_from_pdf(stream: io.BytesIO) -> List[str]:
+    stream.seek(0)
     document = fitz.open(stream=stream, filetype="pdf")
     page_texts: List[str] = []
 
@@ -52,7 +57,7 @@ def extract_text_from_pdf(stream: io.BytesIO) -> str:
     finally:
         document.close()
 
-    return "\n\n".join(page_texts)
+    return page_texts
 
 
 def _extract_page_text_with_ocr(page: fitz.Page) -> str:

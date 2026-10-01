@@ -11,6 +11,7 @@ from ..models.state import GameState
 from ..services.campaign_service import campaign_service
 from ..services.chat_service import chat_service
 from ..services.dice_service import dice_service
+from ..services.document_store import document_store
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -54,6 +55,21 @@ class DiceRollRequest(BaseModel):
 class DicePage(BaseModel):
     rolls: list[DiceRoll]
     next_after_seq: int | None
+
+
+class RuleLookupRequest(BaseModel):
+    query: str
+
+
+class RuleLookupResult(BaseModel):
+    document_id: str
+    title: str
+    page: int
+    snippet: str
+
+
+class RuleLookupResponse(BaseModel):
+    results: list[RuleLookupResult]
 
 
 @router.post("/", response_model=Campaign)
@@ -134,3 +150,9 @@ def verify_campaign_dice(campaign_id: str, roll_id: str):
         return dice_service.verify(campaign, roll_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{campaign_id}/rules/lookup", response_model=RuleLookupResponse)
+def lookup_campaign_rules(campaign_id: str, payload: RuleLookupRequest):
+    campaign = get_campaign(campaign_id)
+    return {"results": document_store.retrieve_scoped(payload.query, campaign.source_document_ids)}
