@@ -95,9 +95,12 @@ and UI design rather than starting from an empty project.
 - [x] **T2.1** — Add a bounded dice-expression parser. Added a hand-written parser with the
   documented grammar, references, keep/drop, explode, reroll, success/failure modifiers, and
   bounded dice/sides limits, with focused regression coverage in `tests/test_dice_parser.py`.
-- [ ] **T2.2** — Add deterministic, verifiable counter-based RNG.
-- [ ] **T2.3** — Implement the ruleset dice mechanic interpreters and preserve the legacy shim.
-- [ ] **T2.4** — Persist dice events and expose the dice log and roll endpoints.
+- [x] **T2.2** — Add deterministic, verifiable counter-based RNG. Added per-branch HMAC-SHA256
+  counter draws, `RngProof` ranges, and a server-side verification endpoint.
+- [x] **T2.3** — Implement the ruleset dice mechanic interpreters and preserve the legacy shim.
+  Added sum-vs-target, pool-successes, bands, and roll-under interpreters.
+- [x] **T2.4** — Persist dice events and expose the dice log and roll endpoints. Rolls project to
+  the paginated dice log and emit linked system chat messages atomically.
 
 ### M3 — Ruleset & setting packs and PDF import
 

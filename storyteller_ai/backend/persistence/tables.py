@@ -94,3 +94,18 @@ scenes = Table(
     Column("branch_id", String, nullable=False),
     Column("data", JSON, nullable=False),
 )
+
+dice_rolls = Table(
+    "dice_rolls", metadata,
+    Column("id", String, primary_key=True),
+    Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
+    Column("branch_id", String, nullable=False),
+    Column("seq", Integer, nullable=False),
+    Column("session_id", String),
+    Column("scene_id", String),
+    Column("turn_id", String),
+    Column("character_id", String),
+    Column("data", JSON, nullable=False),
+    Index("ix_dice_branch_seq", "branch_id", "seq"),
+    Index("ix_dice_character", "character_id"),
+)

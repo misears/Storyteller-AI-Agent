@@ -5,9 +5,12 @@ from pydantic import BaseModel, Field
 
 from ..models.campaign import Campaign, GMMode
 from ..models.chat import ChatMessage, Visibility
+from ..models.campaign import Actor
+from ..models.dice import DiceRoll
 from ..models.state import GameState
 from ..services.campaign_service import campaign_service
 from ..services.chat_service import chat_service
+from ..services.dice_service import dice_service
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -32,6 +35,24 @@ class PostChatRequest(BaseModel):
 
 class ChatPage(BaseModel):
     messages: list[ChatMessage]
+    next_after_seq: int | None
+
+
+class DiceRollRequest(BaseModel):
+    expression: str
+    reason: str
+    character_id: str | None = None
+    target: int | None = None
+    mechanic: str = "sum_vs_target"
+    params: dict = Field(default_factory=dict)
+    session_id: str | None = None
+    scene_id: str | None = None
+    turn_id: str | None = None
+    visibility: Visibility = Field(default_factory=Visibility)
+
+
+class DicePage(BaseModel):
+    rolls: list[DiceRoll]
     next_after_seq: int | None
 
 
@@ -81,3 +102,35 @@ def get_chat_messages(
         session_id, scene_id, speaker_kind,
     )
     return ChatPage(messages=messages, next_after_seq=next_after_seq)
+
+
+@router.post("/{campaign_id}/dice", response_model=DiceRoll)
+def roll_campaign_dice(campaign_id: str, payload: DiceRollRequest):
+    campaign = get_campaign(campaign_id)
+    try:
+        return dice_service.roll(
+            campaign, payload.expression, payload.reason, Actor(kind="player"),
+            payload.character_id, payload.target, payload.mechanic, payload.params,
+            payload.visibility, payload.session_id, payload.scene_id, payload.turn_id,
+        )
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/{campaign_id}/dice", response_model=DicePage)
+def get_campaign_dice(
+    campaign_id: str, after_seq: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100), character_id: str | None = None,
+):
+    campaign = get_campaign(campaign_id)
+    rolls, next_after_seq = dice_service.list(campaign, after_seq, limit, character_id)
+    return DicePage(rolls=rolls, next_after_seq=next_after_seq)
+
+
+@router.get("/{campaign_id}/dice/{roll_id}/verify")
+def verify_campaign_dice(campaign_id: str, roll_id: str):
+    campaign = get_campaign(campaign_id)
+    try:
+        return dice_service.verify(campaign, roll_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

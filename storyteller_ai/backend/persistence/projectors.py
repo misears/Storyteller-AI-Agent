@@ -3,7 +3,7 @@ from sqlalchemy.dialects.sqlite import insert
 
 from ..models.chat import ChatMessage
 from ..models.state import Event
-from .tables import campaigns, chat_messages, memberships, play_sessions, players, scenes, turns
+from .tables import campaigns, chat_messages, dice_rolls, memberships, play_sessions, players, scenes, turns
 
 
 def _upsert(connection: Connection, table, values: dict) -> None:
@@ -87,10 +87,21 @@ def project_event(connection: Connection, event: Event) -> None:
         _patch_data(connection, chat_messages, chat_messages.c.id == payload["id"], {
             "content": "[redacted]",
         })
+    elif event.type == "dice.rolled":
+        if "roll" not in payload:
+            return
+        roll = payload["roll"]
+        _upsert(connection, dice_rolls, {
+            "id": roll["id"], "campaign_id": event.campaign_id,
+            "branch_id": event.branch_id, "seq": event.seq,
+            "session_id": roll.get("session_id"), "scene_id": roll.get("scene_id"),
+            "turn_id": roll.get("turn_id"), "character_id": roll.get("character_id"),
+            "data": {**roll, "seq": event.seq},
+        })
 
 
 def rebuild_projections(connection: Connection, campaign_id: str, events: list[Event]) -> None:
-    for table in (chat_messages, turns, scenes, play_sessions, memberships):
+    for table in (chat_messages, dice_rolls, turns, scenes, play_sessions, memberships):
         connection.execute(delete(table).where(table.c.campaign_id == campaign_id))
     for event in events:
         project_event(connection, event)
