@@ -7,10 +7,12 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from sqlalchemy import select
 
 from ..domain.reducers import replay
-from ..models.campaign import Campaign
+from ..models.campaign import Actor, Campaign
 from ..persistence.db import create_campaign_engine, upgrade_database
 from ..persistence.event_store import EventStore
+from ..persistence.projectors import project_event
 from ..persistence.tables import branches, campaigns, events, saves
+from ..models.state import Event
 
 
 class SaveService:
@@ -102,6 +104,55 @@ class SaveService:
             if not isinstance(campaign, dict) or not isinstance(events_data, list) or not isinstance(saves_data, list):
                 raise ValueError("export has invalid JSON structure")
             return {"campaign": campaign, "event_count": len(events_data), "save_count": len(saves_data)}
+
+    def import_archive(self, archive_bytes: bytes) -> Campaign:
+        self.inspect_export(archive_bytes)
+        with ZipFile(io.BytesIO(archive_bytes)) as archive:
+            source_campaign = Campaign.model_validate(json.loads(archive.read("campaign.json")))
+            source_events = json.loads(archive.read("events.json"))
+            source_saves = json.loads(archive.read("saves.json"))
+        new_campaign_id = str(uuid4())
+        new_branch_id = str(uuid4())
+        campaign = source_campaign.model_copy(update={
+            "id": new_campaign_id, "active_branch_id": new_branch_id,
+            "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
+        })
+        engine = self._engine()
+        try:
+            with engine.begin() as connection:
+                connection.execute(campaigns.insert().values(
+                    id=new_campaign_id, data=campaign.model_dump(mode="json"),
+                    status=campaign.status, active_branch_id=new_branch_id,
+                ))
+                connection.execute(branches.insert().values(
+                    id=new_branch_id, campaign_id=new_campaign_id, label="imported",
+                ))
+                for raw in source_events:
+                    payload = raw["payload"]
+                    if raw["type"] == "campaign.created" and "campaign" in payload:
+                        payload = {"campaign": campaign.model_dump(mode="json")}
+                    event = Event(
+                        seq=raw["seq"], campaign_id=new_campaign_id, branch_id=new_branch_id,
+                        type=raw["type"], payload=payload, payload_version=raw.get("payload_version", 1),
+                        actor=Actor(kind=raw["actor_kind"], id=raw.get("actor_id")),
+                        turn_id=raw.get("turn_id"), created_at=datetime.fromisoformat(raw["created_at"]),
+                    )
+                    connection.execute(events.insert().values(
+                        campaign_id=new_campaign_id, seq=event.seq, branch_id=new_branch_id,
+                        type=event.type, payload=event.payload, payload_version=event.payload_version,
+                        actor_kind=event.actor.kind, actor_id=event.actor.id, turn_id=event.turn_id,
+                        created_at=event.created_at.isoformat(),
+                    ))
+                    project_event(connection, event)
+                for raw in source_saves:
+                    connection.execute(saves.insert().values(
+                        id=str(uuid4()), campaign_id=new_campaign_id, branch_id=new_branch_id,
+                        name=raw["name"], event_seq=raw["event_seq"], data=raw["data"],
+                        created_at=raw["created_at"],
+                    ))
+            return campaign
+        finally:
+            engine.dispose()
 
 
 save_service = SaveService()

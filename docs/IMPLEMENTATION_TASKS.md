@@ -167,8 +167,8 @@ and UI design rather than starting from an empty project.
   parent history from the saved fork sequence.
 - [x] **T6.3** — Load saves as separate branches and support branch selection.
 - [x] **T6.4** — Add event upcasters and snapshot-version handling primitives.
-- [ ] **T6.5** — Add guarded campaign export/import and verify round-trip resume. Guarded export and
-  archive inspection are implemented; full import reconstruction remains.
+- [x] **T6.5** — Add guarded campaign export/import and verify round-trip resume. Archives reject
+  unsafe paths, excess files, and PDFs; import reconstructs a fresh campaign and replays events.
 
 ### M7 — Context management
 

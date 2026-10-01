@@ -23,3 +23,14 @@ def test_export_is_guarded_and_contains_no_pdf_sources(tmp_path, monkeypatch):
 
     assert inspected["campaign"]["id"] == campaign.id
     assert inspected["event_count"] >= 1
+
+
+def test_export_import_creates_independent_campaign(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORYTELLER_DATA_DIR", str(tmp_path / "data"))
+    campaign = campaign_service.create("Round trip")
+    archive = save_service.export(campaign)
+
+    imported = save_service.import_archive(archive)
+
+    assert imported.id != campaign.id
+    assert campaign_service.get(imported.id).title == "Round trip"
