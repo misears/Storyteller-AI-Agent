@@ -104,7 +104,9 @@ and UI design rather than starting from an empty project.
 
 ### M3 — Ruleset & setting packs and PDF import
 
-- [ ] **T3.1** — Add validated ruleset/setting pack loading and registry.
+- [x] **T3.1** — Add validated ruleset/setting pack loading and registry. Bundled and local
+  data-only packs are discovered with bundled-first precedence; manifests and sheet schemas are
+  validated, while invalid packs are retained as diagnostics instead of being loaded.
 - [ ] **T3.2** — Add the safe, allow-listed formula evaluator.
 - [ ] **T3.3** — Bundle the `freeform` and generic PbtA rulesets.
 - [ ] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack.
