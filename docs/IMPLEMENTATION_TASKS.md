@@ -207,7 +207,8 @@ and UI design rather than starting from an empty project.
   FastAPI. The build writes to `frontend/dist`; FastAPI falls back to legacy pages until that
   bundle exists.
 - [x] **T10.1** — Add a campaign lobby with campaign create/select/resume and local API status.
-- [ ] **T10.2** — Add the session-zero setup wizard.
+- [x] **T10.2** — Add the session-zero setup wizard. The React client can generate, review, and
+  complete a campaign bible before opening the table.
 - [x] **T10.3** — Add the live play view with chat/turn submission, server dice action, save action,
   ruleset status, and session preparation controls.
 - [ ] **T10.4** — Add ruleset-schema-driven character sheets and version history.

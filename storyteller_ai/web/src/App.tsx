@@ -4,6 +4,7 @@ import { BookOpen, Dice5, Library, MessageSquare, Plus, Save, Send, Settings2, S
 type Campaign = { id: string; title: string; status: string; mode: string; ruleset_id: string; setting_pack_id: string };
 type ChatMessage = { id: string; speaker_kind: string; content: string; seq: number };
 type Ruleset = { id: string; name: string; version: string; mechanic?: string };
+type Bible = { premise: string; pitch_for_players: string; themes: string[]; opening_situation: string };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init });
@@ -20,6 +21,8 @@ export function App() {
   const [newTitle, setNewTitle] = useState("");
   const [notice, setNotice] = useState("Select a chronicle to begin.");
   const [loading, setLoading] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const [bible, setBible] = useState<Bible | null>(null);
 
   async function refresh() {
     const [campaignData, rulesetData] = await Promise.all([
@@ -75,7 +78,10 @@ export function App() {
     if (!selected) return;
     try {
       await api(`/campaigns/${selected.id}/session-zero/bible`, { method: "POST" });
-      setNotice("Session-zero bible generated. Review it through the campaign setup flow.");
+        const result = await api<{ bible: Bible }>(`/campaigns/${selected.id}/session-zero/bible`);
+        setBible(result.bible); 
+        setShowSetup(true); 
+        setNotice("Review the session-zero bible before opening the table.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Setup failed"); }
   }
 
@@ -94,5 +100,6 @@ export function App() {
         <aside className="inspector"><div className="inspector-heading"><span className="eyebrow">TABLE CARD</span><Settings2 size={16} /></div><div className="card-rule" /><dl><div><dt>RULESET</dt><dd>{selected?.ruleset_id || "freeform"}</dd></div><div><dt>SETTING</dt><dd>{selected?.setting_pack_id || "default"}</dd></div><div><dt>MODE</dt><dd>{selected?.mode || "group"}</dd></div><div><dt>RULESETS INSTALLED</dt><dd>{rulesets.length || "--"}</dd></div></dl><div className="inspector-block"><span className="eyebrow">QUICK TOOLS</span><button onClick={rollServerDice}><Dice5 size={15} /> Roll dice</button><button onClick={saveChronicle}><Save size={15} /> Named save</button><button onClick={prepareSession}><BookOpen size={15} /> Prepare session</button></div></aside>
       </div>
     </main>
+      {showSetup && selected && <div className="setup-overlay"><section className="setup-dialog"><div className="setup-header"><div><span className="eyebrow">SESSION ZERO</span><h2>{selected.title}</h2></div><button className="icon-button" onClick={() => setShowSetup(false)} title="Close setup">×</button></div><div className="setup-progress"><span className="done">01 CHRONICLE BIBLE</span><span>02 PLAYERS</span><span>03 OPENING SCENE</span></div><label>PREMISE<textarea value={bible?.premise || ""} readOnly /></label><label>PLAYER PITCH<textarea value={bible?.pitch_for_players || ""} readOnly /></label><div className="setup-columns"><div><span className="eyebrow">THEMES</span><div className="theme-list">{(bible?.themes || []).map((theme) => <span key={theme}>{theme}</span>)}</div></div><div><span className="eyebrow">OPENING SITUATION</span><p className="setup-opening">{bible?.opening_situation}</p></div></div><div className="setup-footer"><span className="notice">Review is local and saved to the campaign event log.</span><button className="primary-action" onClick={async () => { if (!selected) return; await api(`/campaigns/${selected.id}/session-zero/complete`, { method: "POST" }); setShowSetup(false); setNotice("Session zero complete. The opening scene is ready."); }}>Open the table <Sparkles size={15} /></button></div></section></div>}
   </div>;
 }
