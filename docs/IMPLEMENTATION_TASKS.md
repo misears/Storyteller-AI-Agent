@@ -67,19 +67,19 @@ and UI design rather than starting from an empty project.
 
 - [x] **T0.2** — Remove `*-BlackDragon.*` duplicate files. Verified: none remain in the repository.
 - [x] **T0.1** — Owner decisions recorded in the plan; ADRs 0001–0006 accepted by the owner.
-- [ ] **T0.3** — Stop tracking runtime data and PDFs and complete the documented cleanup. The
+- [x] **T0.3** — Stop tracking runtime data and PDFs and complete the documented cleanup. The
   local data has been backed up outside the repository and all 12 runtime files have been
   untracked without deleting the working copies. Both stores boot from an empty test data
-  directory. Still pending: resolve pre-existing merge markers that block a fresh-clone app
-  startup check, then have the owner rewrite repository history and coordinate other clones as
-  described in the plan. Do not mark complete until PDFs are absent from all history.
+  directory. Merge markers were resolved and `main` history was rewritten. Owner-deferred:
+  PDF-bearing GitHub PR #1 and #2 refs remain accessible pending GitHub Support cleanup;
+  collaborators with old clones must re-clone rather than pull.
 
 ## Phase 1 — Single computer (M0–M11)
 
 ### [M0 — Decisions & cleanup](./STORYTELLER_PLAN.md#16-milestones--issue-sized-tasks)
 
-- [ ] **T0.4** — Add and pass CI for pytest and ruff.
-- [ ] **T0.5** — Configure CORS safely and default the server to loopback binding.
+- [x] **T0.4** — Add and pass CI for pytest and ruff.
+- [x] **T0.5** — Configure CORS safely and default the server to loopback binding.
 
 ### M1 — Persistence & event log
 
