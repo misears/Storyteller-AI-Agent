@@ -13,6 +13,8 @@ from ..services.chat_service import chat_service
 from ..services.dice_service import dice_service
 from ..services.document_store import document_store
 from ..services.campaign_turn_service import campaign_turn_service
+from ..services.save_service import save_service
+from fastapi.responses import Response
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -79,6 +81,10 @@ class CampaignTurnRequest(BaseModel):
     player_id: str | None = None
     client_msg_id: str | None = None
     in_character: bool = True
+
+
+class SaveRequest(BaseModel):
+    name: str
 
 
 @router.post("/", response_model=Campaign)
@@ -173,3 +179,28 @@ async def submit_campaign_turn(campaign_id: str, payload: CampaignTurnRequest):
     return await campaign_turn_service.submit(
         campaign, payload.content, Actor(kind="player", id=payload.player_id),
     )
+
+
+@router.post("/{campaign_id}/saves")
+def create_campaign_save(campaign_id: str, payload: SaveRequest):
+    return save_service.create(get_campaign(campaign_id), payload.name)
+
+
+@router.get("/{campaign_id}/saves")
+def list_campaign_saves(campaign_id: str):
+    return {"saves": save_service.list(get_campaign(campaign_id))}
+
+
+@router.post("/{campaign_id}/saves/{save_id}/load")
+def load_campaign_save(campaign_id: str, save_id: str):
+    try:
+        branch_id = save_service.load(get_campaign(campaign_id), save_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"branch_id": branch_id}
+
+
+@router.get("/{campaign_id}/export")
+def export_campaign(campaign_id: str):
+    campaign = get_campaign(campaign_id)
+    return Response(save_service.export(campaign), media_type="application/zip")

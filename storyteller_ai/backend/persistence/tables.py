@@ -132,3 +132,15 @@ sheet_versions = Table(
     Column("reason", String, nullable=False),
     Column("event_seq", Integer),
 )
+
+saves = Table(
+    "saves", metadata,
+    Column("id", String, primary_key=True),
+    Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
+    Column("branch_id", String, nullable=False),
+    Column("name", String, nullable=False),
+    Column("event_seq", Integer, nullable=False),
+    Column("data", JSON, nullable=False),
+    Column("created_at", String, nullable=False),
+    UniqueConstraint("campaign_id", "name"),
+)

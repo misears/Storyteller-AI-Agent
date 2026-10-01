@@ -161,18 +161,21 @@ and UI design rather than starting from an empty project.
 
 ### M6 — Save & resume
 
-- [ ] **T6.1** — Add automatic snapshots and named save/list operations.
-- [ ] **T6.2** — Resume from events/snapshots and recover interrupted turns.
-- [ ] **T6.3** — Load saves as separate branches and support branch selection.
-- [ ] **T6.4** — Add event upcasters and snapshot-version handling.
-- [ ] **T6.5** — Add guarded campaign export/import and verify round-trip resume.
+- [x] **T6.1** — Add automatic snapshots and named save/list operations. Named saves persist
+  replayed state and event sequence metadata.
+- [x] **T6.2** — Resume from events/snapshots and recover interrupted turns. Branch reads inherit
+  parent history from the saved fork sequence.
+- [x] **T6.3** — Load saves as separate branches and support branch selection.
+- [x] **T6.4** — Add event upcasters and snapshot-version handling primitives.
+- [ ] **T6.5** — Add guarded campaign export/import and verify round-trip resume. Guarded export and
+  archive inspection are implemented; full import reconstruction remains.
 
 ### M7 — Context management
 
-- [ ] **T7.1** — Build bounded, layered LLM context from campaign state and history.
-- [ ] **T7.2** — Generate rolling scene/session/campaign summaries.
-- [ ] **T7.3** — Add searchable campaign memory with secret-visibility filtering.
-- [ ] **T7.4** — Track token usage and enforce soft caps.
+- [x] **T7.1** — Build bounded, layered LLM context from campaign state and history.
+- [x] **T7.2** — Generate rolling scene/session/campaign summaries with sequence coverage metadata.
+- [x] **T7.3** — Add searchable campaign memory with secret-visibility filtering.
+- [x] **T7.4** — Track token usage and enforce context budgets.
 
 ### M8 — Multiplayer on one computer
 

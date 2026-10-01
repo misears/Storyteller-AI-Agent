@@ -8,7 +8,7 @@ from ..models.campaign import Actor
 from ..models.state import Event
 from .db import create_campaign_engine
 from .projectors import project_event
-from .tables import events
+from .tables import branches, events
 
 
 class EventWriter:
@@ -53,6 +53,17 @@ class EventStore:
                 raise
 
     def read(self, campaign_id: str, branch_id: str | None = None, after_seq: int = 0) -> list[Event]:
+        if branch_id is not None:
+            with self.engine.connect() as connection:
+                branch = connection.execute(select(branches).where(branches.c.id == branch_id)).mappings().one_or_none()
+            if branch and branch["parent_branch_id"]:
+                inherited = self.read(campaign_id, branch["parent_branch_id"], after_seq)
+                inherited = [event for event in inherited if event.seq <= (branch["forked_at_seq"] or 0)]
+                child = self._read_events(campaign_id, branch_id, after_seq)
+                return inherited + child
+        return self._read_events(campaign_id, branch_id, after_seq)
+
+    def _read_events(self, campaign_id: str, branch_id: str | None, after_seq: int) -> list[Event]:
         query = select(events).where(events.c.campaign_id == campaign_id, events.c.seq > after_seq)
         if branch_id is not None:
             query = query.where(events.c.branch_id == branch_id)
