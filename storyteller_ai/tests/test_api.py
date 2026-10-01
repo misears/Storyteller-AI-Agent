@@ -21,6 +21,24 @@ async def _submit_request(method, path, json=None):
         return await request(path, json=json)
 
 
+def test_cors_allows_only_configured_origins():
+    async def preflight(origin):
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            return await client.options(
+                "/health",
+                headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+            )
+
+    allowed = _run_async(preflight("http://127.0.0.1:8000"))
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:8000"
+    assert allowed.headers["access-control-allow-credentials"] == "true"
+
+    denied = _run_async(preflight("https://untrusted.example"))
+    assert denied.status_code == 400
+    assert "access-control-allow-origin" not in denied.headers
+
+
 def test_session_create(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "mock")
     response = _run_async(_submit_request("post", "/sessions/create", json={"mode": "group"}))
@@ -180,8 +198,6 @@ def test_character_sheet_export_docx():
     archive = zipfile.ZipFile(io.BytesIO(export_response.content))
     names = set(archive.namelist())
     assert "word/document.xml" in names
-<<<<<<< HEAD
-=======
 
 
 def test_ocr_status_endpoint():
@@ -243,4 +259,3 @@ def test_session_create_with_campaign_genres(monkeypatch):
     body = response.json()
     assert body["campaign_genres"] == ["vampire", "mage"]
     assert body["document_ids"] == ["book-one", "book-two"]
->>>>>>> cb5351ad94b7d8db2bca5574351621570b88fe74

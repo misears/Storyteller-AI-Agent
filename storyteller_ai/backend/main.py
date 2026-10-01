@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,15 @@ from .services.browser_launcher import launch_browser_when_ready
 from .services.app_paths import get_frontend_dir
 
 FRONTEND_DIR = get_frontend_dir()
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "STORYTELLER_CORS_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000"
+    ).split(",")
+    if origin.strip()
+]
+if "*" in CORS_ORIGINS:
+    raise ValueError("STORYTELLER_CORS_ORIGINS cannot contain '*' with credentials enabled")
 
 
 @asynccontextmanager
@@ -19,7 +29,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Storyteller AI Backend", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
