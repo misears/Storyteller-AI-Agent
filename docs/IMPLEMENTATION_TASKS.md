@@ -225,7 +225,8 @@ and UI design rather than starting from an empty project.
 - [x] **T11.2** — Meet the planned resume and turn-overhead performance targets. The local
   harness measured 1,000-event replay at 0.0268 seconds and non-LLM persistence overhead at
   1.63 ms on the development machine.
-- [ ] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
+- [x] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
+  PyInstaller was built successfully with frontend assets, `backend/content`, and migrations.
 - [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
 - [ ] **T11.5** — Complete scripted and real multi-session local play; record owner sign-off.
 

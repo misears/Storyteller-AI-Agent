@@ -28,6 +28,7 @@ hiddenimports += collect_submodules("alembic")
 datas = [
     (str(frontend_dir), "frontend"),
     (str(backend_dir / "persistence" / "migrations"), "backend/persistence/migrations"),
+    (str(backend_dir / "content"), "backend/content"),
 ]
 
 a = Analysis(
