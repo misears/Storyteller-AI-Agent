@@ -137,7 +137,8 @@ and UI design rather than starting from an empty project.
 
 - [x] **T4.1** — Add schema-validated sheet create/patch, versioning, and optimistic locking.
 - [x] **T4.2** — Add sheet history and revert operations.
-- [ ] **T4.3** — Migrate existing sheets to the database and retain the compatibility API and exports.
+- [x] **T4.3** — Migrate existing sheets to the database and retain the compatibility API and
+  exports. The migration is idempotent and leaves the legacy JSON routes available.
 - [x] **T4.4** — Add NPC tiers, archetype defaults, and derived values. Ruleset-driven sheet
   validation, derived formulas, and tier-required fields are enforced by the character service.
 - [x] **T4.5** — Replace fixed character creation with ruleset-driven chargen primitives. The
@@ -148,11 +149,14 @@ and UI design rather than starting from an empty project.
 - [x] **T5.1** — Add a provider-neutral LLM tool-call interface for OpenAI, Anthropic, and Ollama.
 - [x] **T5.2** — Add the tool registry, argument schemas, authority checks, and audit records.
 - [x] **T5.3** — Implement and test the game-tool handlers.
-- [ ] **T5.4** — Replace the partial prompt with the layered, ruleset-aware GM protocol.
+- [x] **T5.4** — Replace the partial prompt with the layered, ruleset-aware GM protocol. Added
+  bounded context rendering with explicit ruleset, setting, mode, and procedure layers.
 - [x] **T5.5** — Add the transactional turn service and fabricated-roll guard.
 - [x] **T5.6** — Add safe fenced-JSON fallback for models without tool calling.
 - [x] **T5.7** — Add configurable per-role model profiles and model management primitives.
-- [ ] **T5.8** — Benchmark candidate models on the owner's RTX 4070 laptop.
+- [ ] **T5.8** — Benchmark candidate models on the owner's RTX 4070 laptop. Added the runnable
+  harness at `scripts/benchmark_models.py`; hardware measurements and model selection remain
+  pending an owner-side run.
 - [x] **T5.7 (turn endpoint row in plan)** — Add `/campaigns/{id}/turns` and keep `/gm/step` working as a compatibility shim.
 
 ### M6 — Save & resume

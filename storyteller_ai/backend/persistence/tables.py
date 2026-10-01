@@ -109,3 +109,26 @@ dice_rolls = Table(
     Index("ix_dice_branch_seq", "branch_id", "seq"),
     Index("ix_dice_character", "character_id"),
 )
+
+character_sheets = Table(
+    "character_sheets", metadata,
+    Column("id", String, primary_key=True),
+    Column("character_id", String, nullable=False),
+    Column("ruleset_id", String, nullable=False),
+    Column("ruleset_version", String, nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("data", JSON, nullable=False),
+    Column("derived", JSON, nullable=False),
+    Column("updated_at", String, nullable=False),
+    Column("updated_by_kind", String, nullable=False),
+    Column("updated_by_id", String),
+)
+
+sheet_versions = Table(
+    "sheet_versions", metadata,
+    Column("sheet_id", String, primary_key=True),
+    Column("version", Integer, primary_key=True),
+    Column("data", JSON, nullable=False),
+    Column("reason", String, nullable=False),
+    Column("event_seq", Integer),
+)
