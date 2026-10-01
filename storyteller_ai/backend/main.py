@@ -37,6 +37,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_size_limit(request, call_next):
+    max_bytes = int(os.getenv("STORYTELLER_MAX_REQUEST_BYTES", str(4 * 1024 * 1024)))
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > max_bytes:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "request body too large"}, status_code=413)
+    return await call_next(request)
 app.include_router(documents.router)
 app.include_router(gm.router)
 app.include_router(sessions.router)

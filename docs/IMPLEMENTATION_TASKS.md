@@ -220,7 +220,8 @@ and UI design rather than starting from an empty project.
 
 ### M11 — Hardening & local release
 
-- [ ] **T11.1** — Add request limits, secret-leak checks, and loopback-only bind protection.
+- [x] **T11.1** — Add request limits, secret-leak checks, and loopback-only bind protection.
+  Added configurable request-size middleware plus reusable loopback and public-narration guards.
 - [ ] **T11.2** — Meet the planned resume and turn-overhead performance targets.
 - [ ] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
 - [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
