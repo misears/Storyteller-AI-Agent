@@ -107,7 +107,9 @@ and UI design rather than starting from an empty project.
 - [x] **T3.1** — Add validated ruleset/setting pack loading and registry. Bundled and local
   data-only packs are discovered with bundled-first precedence; manifests and sheet schemas are
   validated, while invalid packs are retained as diagnostics instead of being loaded.
-- [ ] **T3.2** — Add the safe, allow-listed formula evaluator.
+- [x] **T3.2** — Add the safe, allow-listed formula evaluator. Formulas use a bounded AST walker
+  with arithmetic, comparisons, approved functions, and explicit helper injection; `eval`, imports,
+  attributes, lambdas, and unapproved calls are rejected.
 - [ ] **T3.3** — Bundle the `freeform` and generic PbtA rulesets.
 - [ ] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack.
 - [ ] **T3.5** — Scope rule lookup to selected campaign PDFs and include page citations.
