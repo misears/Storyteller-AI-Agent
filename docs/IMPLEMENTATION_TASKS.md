@@ -182,20 +182,46 @@ and UI design rather than starting from an empty project.
 - [ ] **T11.2** — Meet the planned resume and turn-overhead performance targets.
 - [ ] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
 - [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
-- [ ] **T11.5** — Complete scripted and real multi-session local play; record owner sign-off.
+- [ ] **T11.5** — After T11.6–T11.8 pass, complete scripted and real multi-session local play;
+  record owner sign-off.
+- [ ] **T11.6** — Resolve missing OCR in the nontechnical-user installation. Detect Tesseract
+  and required language data before installation and PDF import; offer a consent-based,
+  verified installation or guided repair without requiring PATH edits. Configure the app's
+  OCR executable explicitly. If OCR is declined or unavailable, keep text PDFs working and
+  explain why scanned PDFs cannot be read. Verify fresh install, existing OCR, missing
+  language data, failed download/repair, and successful scanned-PDF extraction with page
+  citations. Rebuild and smoke-test the installer with the completed OCR workflow.
+- [ ] **T11.7** — Replace Ollama's fixed 30-second timeout with configurable connection/read
+  timeouts and a bounded total generation/retry budget suitable for cold model loads and
+  CPU/GPU inference. Show generation progress, cancellation, and actionable timeout errors;
+  never commit partial state or duplicate a turn when retrying. Test a response taking more
+  than 30 seconds, cold start, unreachable server, stalled generation, cancellation, and
+  recovery. Document defaults and verify them in the installed app on the owner's laptop.
+- [ ] **T11.8** — Complete and verify local game-state tool handling through the shared M5
+  provider-neutral interface and validated handlers (T5.1–T5.6), not an installer-only
+  workaround. Send Ollama tool schemas, parse calls, return tool results to the model, and
+  obtain final narration within bounded tool rounds. Enforce schema, authority, visibility,
+  and server-authoritative dice checks; malformed or unauthorized calls must not mutate
+  state. Use only the validated T5.6 fallback for models without native tools. Verify
+  narration plus exactly-once persisted updates, save/replay, invalid calls, interrupted
+  turns, and reasoning/output-budget settings for the installed Qwen models. Rebuild the
+  installer and test local play without cloud credentials.
 
 **Phase 1 complete gate:** Python tests and ruff, pack validation, migrations, replay, scripted
 tool-loop, PDF import, and multi-window UI checks pass. Record 1,000-turn resume (< 1 s) and
 non-LLM turn overhead (< 100 ms) measurements, even when performance CI is non-blocking. Smoke
 test the packaged app without Node installed. Run one full scripted session and a real
 multi-session campaign covering saves/forks, sheets, rules lookup/import, model switching,
-safety controls, and a second window. T11.5 needs owner confirmation that local play works as
+safety controls, and a second window. T11.6–T11.8 are required local-release blockers: the
+installed app must pass OCR setup/repair, slow-generation recovery, and local state-tool
+checks before sign-off. T11.5 needs owner confirmation that local play works as
 desired; only then mark Phase 1 complete and begin M12. An optional live-LLM smoke test runs
 on the owner's machine; CI uses a scripted provider.
 
 ## Deferred until Phase 1 sign-off
 
-Do not start M12 or M13 until T11.5 is complete. Network play comes before Discord.
+Do not start M12 or M13 until T11.6–T11.8 have passed and T11.5 is complete. Network play comes
+before Discord.
 
 ### M12 — Network play (Phase 2)
 
