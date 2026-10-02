@@ -28,6 +28,15 @@ class OCRStatusResponse(BaseModel):
     detail: str
 
 
+class ModelProfileRequest(BaseModel):
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    context_window: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    supports_tools: Optional[bool] = None
+    supports_json_schema: Optional[bool] = None
+
+
 @router.get("/llm", response_model=LLMSettingsResponse)
 def get_llm_settings() -> LLMSettingsResponse:
     return runtime_settings.get_llm()
@@ -45,3 +54,18 @@ def update_llm_settings(payload: LLMSettingsUpdateRequest) -> LLMSettingsRespons
 def get_ocr_status() -> OCRStatusResponse:
     active, detail = get_ocr_runtime_status()
     return OCRStatusResponse(active=active, detail=detail)
+
+
+@router.get("/llm/profiles")
+def get_llm_profiles():
+    return {"profiles": runtime_settings.get_profiles()}
+
+
+@router.put("/llm/profiles/{role}")
+def update_llm_profile(role: str, payload: ModelProfileRequest):
+    try:
+        profile = runtime_settings.update_profile(role, payload.model_dump(exclude_none=True))
+    except ValueError as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"role": role, "profile": profile}

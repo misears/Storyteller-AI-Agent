@@ -1,0 +1,1 @@
+"""Pure campaign domain operations."""

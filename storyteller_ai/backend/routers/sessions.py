@@ -65,15 +65,12 @@ def create_session(payload: CreateSessionRequest):
 @router.post("/{session_id}/characters")
 def create_character(session_id: str, payload: CharacterCreateRequest):
     try:
-        session = session_manager.get_session(session_id)
+        session_manager.get_session(session_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    character = payload.dict()
-    session.setdefault("characters", []).append(character)
-    gm_loop = session["gm_loop"]
-    gm_loop.orchestrator.state.setdefault("characters", []).append(character)
-    return {"character": character, "characters": session["characters"]}
+    character = payload.model_dump()
+    return {"character": character, "characters": session_manager.add_character(session_id, character)}
 
 
 @router.get("/{session_id}", response_model=SessionStatusResponse)

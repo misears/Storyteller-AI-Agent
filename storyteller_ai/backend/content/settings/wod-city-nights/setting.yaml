@@ -1,0 +1,43 @@
+id: wod-city-nights
+version: 1.0.0
+name: World of Darkness City Nights Structure
+compatible_rulesets: [vtm-revised]
+genre: [urban-fantasy, horror]
+tone: [personal-horror, political-intrigue, neon-noir]
+default_lines: [harm-to-children]
+default_veils: [explicit-feeding]
+trackers:
+  - id: masquerade
+    label: Masquerade Strain
+    kind: meter
+    min: 0
+    max: 10
+    value: 0
+  - id: camarilla
+    label: Camarilla Influence
+    kind: clock
+    min: 0
+    max: 8
+    value: 0
+  - id: anarchs
+    label: Anarch Pressure
+    kind: clock
+    min: 0
+    max: 8
+    value: 0
+factions:
+  - {id: camarilla, name: Camarilla, influence: 3}
+  - {id: anarchs, name: Anarchs, influence: 2}
+  - {id: sabbat-rumors, name: Sabbat Rumors, influence: 1}
+locations:
+  - {id: downtown, name: Downtown, tags: [elysium, corporate, police-presence]}
+  - {id: industrial, name: Industrial Zone, tags: [rack, gangs, smuggling]}
+  - {id: old-town, name: Old Town, tags: [haunted, ancient-havens]}
+npc_archetypes: []
+name_tables: {}
+hook_tables: {}
+glossary: {}
+lore_document_ids: []
+prompt_digest: >-
+  A modern gothic city where supernatural factions compete for territory and secrecy. The
+  Storyteller uses only selected local documents for detailed lore lookup.

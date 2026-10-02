@@ -1,12 +1,13 @@
 import os
 from threading import Lock
-from typing import Dict
+from typing import Any, Dict
 
 
 class RuntimeSettings:
     def __init__(self) -> None:
         self._lock = Lock()
         self._overrides: Dict[str, str] = {}
+        self._profiles: Dict[str, Dict[str, Any]] = {}
 
     def get_llm(self) -> Dict[str, str]:
         defaults = {
@@ -32,6 +33,21 @@ class RuntimeSettings:
                 self._overrides[key] = value.strip()
 
         return self.get_llm()
+
+    def get_profiles(self) -> Dict[str, Dict[str, Any]]:
+        with self._lock:
+            return {role: dict(profile) for role, profile in self._profiles.items()}
+
+    def update_profile(self, role: str, profile: Dict[str, Any]) -> Dict[str, Any]:
+        if not role.strip():
+            raise ValueError("profile role is required")
+        allowed = {"provider", "model", "context_window", "max_output_tokens", "supports_tools", "supports_json_schema"}
+        unknown = set(profile) - allowed
+        if unknown:
+            raise ValueError(f"unsupported profile fields: {', '.join(sorted(unknown))}")
+        with self._lock:
+            self._profiles[role] = {**self._profiles.get(role, {}), **profile}
+            return dict(self._profiles[role])
 
 
 runtime_settings = RuntimeSettings()

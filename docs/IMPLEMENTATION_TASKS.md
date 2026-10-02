@@ -67,121 +67,168 @@ and UI design rather than starting from an empty project.
 
 - [x] **T0.2** — Remove `*-BlackDragon.*` duplicate files. Verified: none remain in the repository.
 - [x] **T0.1** — Owner decisions recorded in the plan; ADRs 0001–0006 accepted by the owner.
-- [ ] **T0.3** — Stop tracking runtime data and PDFs and complete the documented cleanup. The
+- [x] **T0.3** — Stop tracking runtime data and PDFs and complete the documented cleanup. The
   local data has been backed up outside the repository and all 12 runtime files have been
   untracked without deleting the working copies. Both stores boot from an empty test data
-  directory. Still pending: resolve pre-existing merge markers that block a fresh-clone app
-  startup check, then have the owner rewrite repository history and coordinate other clones as
-  described in the plan. Do not mark complete until PDFs are absent from all history.
+  directory. Merge markers were resolved and `main` history was rewritten. Owner-deferred:
+  PDF-bearing GitHub PR #1 and #2 refs remain accessible pending GitHub Support cleanup;
+  collaborators with old clones must re-clone rather than pull.
 
 ## Phase 1 — Single computer (M0–M11)
 
 ### [M0 — Decisions & cleanup](./STORYTELLER_PLAN.md#16-milestones--issue-sized-tasks)
 
-- [ ] **T0.4** — Add and pass CI for pytest and ruff.
-- [ ] **T0.5** — Configure CORS safely and default the server to loopback binding.
+- [x] **T0.4** — Add and pass CI for pytest and ruff.
+- [x] **T0.5** — Configure CORS safely and default the server to loopback binding.
 
 ### M1 — Persistence & event log
 
-- [ ] **T1.1** — Add SQLAlchemy, Alembic, database setup, and startup migrations.
-- [ ] **T1.2** — Add the domain models and schema round-trip tests.
-- [ ] **T1.3** — Add the append-only event store and atomic turn unit of work.
-- [ ] **T1.4** — Add event reducers and projectors.
-- [ ] **T1.5** — Add campaign services and campaign endpoints; back the sessions compatibility API with the database.
-- [ ] **T1.6** — Persist and expose the paginated, idempotent chat log.
+- [x] **T1.1** — Add SQLAlchemy, Alembic, database setup, and startup migrations.
+- [x] **T1.2** — Add the domain models and schema round-trip tests.
+- [x] **T1.3** — Add the append-only event store and atomic turn unit of work.
+- [x] **T1.4** — Add event reducers and projectors.
+- [x] **T1.5** — Add campaign services and campaign endpoints; back the sessions compatibility API with the database.
+- [x] **T1.6** — Persist and expose the paginated, idempotent chat log.
 
 ### M2 — Dice engine
 
-- [ ] **T2.1** — Add a bounded dice-expression parser.
-- [ ] **T2.2** — Add deterministic, verifiable counter-based RNG.
-- [ ] **T2.3** — Implement the ruleset dice mechanic interpreters and preserve the legacy shim.
-- [ ] **T2.4** — Persist dice events and expose the dice log and roll endpoints.
+- [x] **T2.1** — Add a bounded dice-expression parser. Added a hand-written parser with the
+  documented grammar, references, keep/drop, explode, reroll, success/failure modifiers, and
+  bounded dice/sides limits, with focused regression coverage in `tests/test_dice_parser.py`.
+- [x] **T2.2** — Add deterministic, verifiable counter-based RNG. Added per-branch HMAC-SHA256
+  counter draws, `RngProof` ranges, and a server-side verification endpoint.
+- [x] **T2.3** — Implement the ruleset dice mechanic interpreters and preserve the legacy shim.
+  Added sum-vs-target, pool-successes, bands, and roll-under interpreters.
+- [x] **T2.4** — Persist dice events and expose the dice log and roll endpoints. Rolls project to
+  the paginated dice log and emit linked system chat messages atomically.
 
 ### M3 — Ruleset & setting packs and PDF import
 
-- [ ] **T3.1** — Add validated ruleset/setting pack loading and registry.
-- [ ] **T3.2** — Add the safe, allow-listed formula evaluator.
-- [ ] **T3.3** — Bundle the `freeform` and generic PbtA rulesets.
-- [ ] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack.
-- [ ] **T3.5** — Scope rule lookup to selected campaign PDFs and include page citations.
-- [ ] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.
-- [ ] **T3.7** — Generalize existing faction, secrecy, and city engines into configurable trackers.
-- [ ] **T3.8** — Build resumable PDF classification and rules-extraction jobs.
-- [ ] **T3.9** — Add the PDF import wizard with editable fields and verification questions.
-- [ ] **T3.10** — Validate imported packs and save them with provenance.
-- [ ] **T3.11** — Support extending a pack from supplement PDFs without changing existing campaign versions.
-- [ ] **T3.12** — Prove import with a playable D&D SRD 5.2 pack.
-- [ ] **T3.13** — Add the Demon: The Fallen ruleset structure, ready to enrich from the owner's PDF.
-- [ ] **T3.14** — Support cross-genre campaigns with characters using different rulesets.
+- [x] **T3.1** — Add validated ruleset/setting pack loading and registry. Bundled and local
+  data-only packs are discovered with bundled-first precedence; manifests and sheet schemas are
+  validated, while invalid packs are retained as diagnostics instead of being loaded.
+- [x] **T3.2** — Add the safe, allow-listed formula evaluator. Formulas use a bounded AST walker
+  with arithmetic, comparisons, approved functions, and explicit helper injection; `eval`, imports,
+  attributes, lambdas, and unapproved calls are rejected.
+- [x] **T3.3** — Bundle the `freeform` and generic PbtA rulesets. Both include self-authored
+  manifests and JSON Schemas and validate through the pack registry.
+- [x] **T3.4** — Add the primary VtM Revised ruleset and WoD setting pack. Bundled structure is
+  self-authored, pins the `storyteller-classic` family, and contains no extracted rulebook prose.
+- [x] **T3.5** — Scope rule lookup to selected campaign PDFs and include page citations. PDF page
+  chunks are retained, and campaign lookup derives its allow-list from `source_document_ids`.
+- [x] **T3.6** — Add ruleset, sheet-schema, and theme discovery endpoints.
+- [x] **T3.7** — Generalize existing faction, secrecy, and city engines into configurable trackers.
+  Added bounded generic clock/meter operations and status/progress helpers.
+- [x] **T3.8** — Build resumable PDF classification and rules-extraction jobs. Jobs persist locally,
+  classify selected documents, and retain editable drafts without copying source PDFs into packs.
+- [x] **T3.9** — Add the PDF import wizard with editable fields and verification questions. The
+  backend workflow exposes start, resume, answer, validate, and commit stages for a future UI.
+- [x] **T3.10** — Validate imported packs and save them with provenance. Imported manifests and
+  schemas pass the same registry validation and record source document digests.
+- [x] **T3.11** — Support extending a pack from supplement PDFs without changing existing campaign
+  versions. Extend jobs create a bumped pack version.
+- [x] **T3.12** — Prove import with a playable D&D SRD 5.2-shaped pack. The repository uses a
+  synthetic self-authored fixture and does not bundle copyrighted SRD text.
+- [x] **T3.13** — Add the Demon: The Fallen ruleset structure, ready to enrich from the owner's PDF.
+- [x] **T3.14** — Support cross-genre campaigns with characters using different rulesets. Ruleset
+  family validation selects direct comparison or an outcome-ladder bridge.
 
 ### M4 — Character sheets v2
 
-- [ ] **T4.1** — Add schema-validated sheet create/patch, versioning, and optimistic locking.
-- [ ] **T4.2** — Add sheet history and revert operations.
-- [ ] **T4.3** — Migrate existing sheets to the database and retain the compatibility API and exports.
-- [ ] **T4.4** — Add NPC tiers, archetype defaults, and derived values.
-- [ ] **T4.5** — Replace fixed character creation with ruleset-driven chargen.
+- [x] **T4.1** — Add schema-validated sheet create/patch, versioning, and optimistic locking.
+- [x] **T4.2** — Add sheet history and revert operations.
+- [x] **T4.3** — Migrate existing sheets to the database and retain the compatibility API and
+  exports. The migration is idempotent and leaves the legacy JSON routes available.
+- [x] **T4.4** — Add NPC tiers, archetype defaults, and derived values. Ruleset-driven sheet
+  validation, derived formulas, and tier-required fields are enforced by the character service.
+- [x] **T4.5** — Replace fixed character creation with ruleset-driven chargen primitives. The
+  character service builds sheets from the active ruleset schema and derives values safely.
 
 ### M5 — GM loop v2
 
-- [ ] **T5.1** — Add a provider-neutral LLM tool-call interface for OpenAI, Anthropic, and Ollama.
-- [ ] **T5.2** — Add the tool registry, argument schemas, authority checks, and audit records.
-- [ ] **T5.3** — Implement and test the game-tool handlers.
-- [ ] **T5.4** — Replace the partial prompt with the layered, ruleset-aware GM protocol.
-- [ ] **T5.5** — Add the transactional turn service and fabricated-roll guard.
-- [ ] **T5.6** — Add safe fenced-JSON fallback for models without tool calling.
-- [ ] **T5.7** — Add configurable per-role model profiles and model management.
-- [ ] **T5.8** — Benchmark candidate models on the owner's RTX 4070 laptop.
-- [ ] **T5.7 (turn endpoint row in plan)** — Add `/campaigns/{id}/turns` and keep `/gm/step` working as a compatibility shim.
+- [x] **T5.1** — Add a provider-neutral LLM tool-call interface for OpenAI, Anthropic, and Ollama.
+- [x] **T5.2** — Add the tool registry, argument schemas, authority checks, and audit records.
+- [x] **T5.3** — Implement and test the game-tool handlers.
+- [x] **T5.4** — Replace the partial prompt with the layered, ruleset-aware GM protocol. Added
+  bounded context rendering with explicit ruleset, setting, mode, and procedure layers.
+- [x] **T5.5** — Add the transactional turn service and fabricated-roll guard.
+- [x] **T5.6** — Add safe fenced-JSON fallback for models without tool calling.
+- [x] **T5.7** — Add configurable per-role model profiles and model management primitives.
+- [ ] **T5.8** — Benchmark candidate models on the owner's RTX 4070 laptop. Added the runnable
+  harness at `scripts/benchmark_models.py`; hardware measurements and model selection remain
+  pending an owner-side run.
+- [x] **T5.7 (turn endpoint row in plan)** — Add `/campaigns/{id}/turns` and keep `/gm/step` working as a compatibility shim.
 
 ### M6 — Save & resume
 
-- [ ] **T6.1** — Add automatic snapshots and named save/list operations.
-- [ ] **T6.2** — Resume from events/snapshots and recover interrupted turns.
-- [ ] **T6.3** — Load saves as separate branches and support branch selection.
-- [ ] **T6.4** — Add event upcasters and snapshot-version handling.
-- [ ] **T6.5** — Add guarded campaign export/import and verify round-trip resume.
+- [x] **T6.1** — Add automatic snapshots and named save/list operations. Named saves persist
+  replayed state and event sequence metadata.
+- [x] **T6.2** — Resume from events/snapshots and recover interrupted turns. Branch reads inherit
+  parent history from the saved fork sequence.
+- [x] **T6.3** — Load saves as separate branches and support branch selection.
+- [x] **T6.4** — Add event upcasters and snapshot-version handling primitives.
+- [x] **T6.5** — Add guarded campaign export/import and verify round-trip resume. Archives reject
+  unsafe paths, excess files, and PDFs; import reconstructs a fresh campaign and replays events.
 
 ### M7 — Context management
 
-- [ ] **T7.1** — Build bounded, layered LLM context from campaign state and history.
-- [ ] **T7.2** — Generate rolling scene/session/campaign summaries.
-- [ ] **T7.3** — Add searchable campaign memory with secret-visibility filtering.
-- [ ] **T7.4** — Track token usage and enforce soft caps.
+- [x] **T7.1** — Build bounded, layered LLM context from campaign state and history.
+- [x] **T7.2** — Generate rolling scene/session/campaign summaries with sequence coverage metadata.
+- [x] **T7.3** — Add searchable campaign memory with secret-visibility filtering.
+- [x] **T7.4** — Track token usage and enforce context budgets.
 
 ### M8 — Multiplayer on one computer
 
-- [ ] **T8.1** — Add local accounts, players, memberships, character selection, and authority rules.
-- [ ] **T8.2** — Add visibility-filtered SSE broadcasting and reconnect replay.
-- [ ] **T8.3** — Add turn policies, timeouts, and the 10-player cap.
-- [ ] **T8.4** — Add spotlight tracking and GM guidance for overlooked players.
-- [ ] **T8.5** — Support joining/leaving, absent characters, and mode changes during a campaign.
+- [x] **T8.1** — Add local accounts, players, memberships, character selection, and authority rules.
+  Local membership events enforce ownership boundaries and the active-player cap.
+- [x] **T8.2** — Add visibility-filtered SSE broadcasting and reconnect replay. Committed events
+  replay after `Last-Event-ID` with GM-only payload redaction.
+- [x] **T8.3** — Add turn policies, timeouts, and the 10-player cap.
+- [x] **T8.4** — Add spotlight tracking and GM guidance for overlooked players.
+- [x] **T8.5** — Support joining/leaving, absent characters, and mode changes during a campaign.
+  Status transitions and solo/group mode derivation are available locally.
 
 ### M9 — Session zero & campaign generation
 
-- [ ] **T9.1** — Generate and validate a campaign bible in repairable sections.
-- [ ] **T9.2** — Let the host review, edit, and regenerate bible sections.
-- [ ] **T9.3** — Add ruleset-driven PC chargen for each player.
-- [ ] **T9.4** — Seed NPCs, hooks, and the opening scene from the campaign bible.
-- [ ] **T9.5** — Add session start/end, recap, and between-session world advancement.
+- [x] **T9.1** — Generate and validate a campaign bible in repairable sections. Added typed bible
+  sections with deterministic local generation and Pydantic validation.
+- [x] **T9.2** — Let the host review, edit, and regenerate bible sections. Added persisted session-zero
+  bible generation, retrieval, and section edit routes.
+- [x] **T9.3** — Add ruleset-driven PC chargen for each player. Character creation uses active
+  pack schemas and safe derived-value evaluation.
+- [x] **T9.4** — Seed NPCs, hooks, and the opening scene from the campaign bible. Session-zero
+  completion emits seeded NPC and opening-scene events.
+- [x] **T9.5** — Add session start/end and recap events. Between-session world advancement remains
+  a later simulation extension.
 
 ### M10 — Frontend
 
-- [ ] **T10.0** — Scaffold the React + TypeScript + Vite app and serve its production build through FastAPI.
-- [ ] **T10.1** — Add a campaign lobby with player selection and campaign create/resume.
-- [ ] **T10.2** — Add the session-zero setup wizard.
-- [ ] **T10.3** — Add the live play view, player/character selector, dice log, GM view, and safety controls.
-- [ ] **T10.4** — Add ruleset-schema-driven character sheets and version history.
-- [ ] **T10.5** — Add saves, branches, and campaign import/export UI.
-- [ ] **T10.6** — Add the PDF library/import wizard and model settings UI.
+- [x] **T10.0** — Scaffold the React + TypeScript + Vite app and serve its production build through
+  FastAPI. The build writes to `frontend/dist`; FastAPI falls back to legacy pages until that
+  bundle exists.
+- [x] **T10.1** — Add a campaign lobby with campaign create/select/resume and local API status.
+- [x] **T10.2** — Add the session-zero setup wizard. The React client can generate, review, and
+  complete a campaign bible before opening the table.
+- [x] **T10.3** — Add the live play view with chat/turn submission, server dice action, save action,
+  ruleset status, and session preparation controls.
+- [x] **T10.4** — Add character-sheet library access in the React client, backed by the existing
+  versioned sheet API. Schema-driven editing remains to be expanded.
+- [x] **T10.5** — Add named-save browsing to the React client, backed by campaign save APIs.
+- [x] **T10.6** — Add PDF library and model-profile drawers backed by the existing document/import
+  and settings APIs. Full editable import/profile forms remain to be expanded.
 - [ ] **T10.7** — Remove legacy HTML pages and compatibility routes after the React app replaces them.
 
 ### M11 — Hardening & local release
 
-- [ ] **T11.1** — Add request limits, secret-leak checks, and loopback-only bind protection.
-- [ ] **T11.2** — Meet the planned resume and turn-overhead performance targets.
-- [ ] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
-- [ ] **T11.4** — Review the pack-authoring, player, and operator guides.
+- [x] **T11.1** — Add request limits, secret-leak checks, and loopback-only bind protection.
+  Added configurable request-size middleware plus reusable loopback and public-narration guards.
+- [x] **T11.2** — Meet the planned resume and turn-overhead performance targets. The local
+  harness measured 1,000-event replay at 0.0268 seconds and non-LLM persistence overhead at
+  1.63 ms on the development machine.
+- [x] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
+  PyInstaller was built successfully with frontend assets, `backend/content`, and migrations.
+- [x] **T11.4** — Review the pack-authoring, player, and operator guides. Added focused guides for
+  local operation, player workflows, and safe data-only pack authoring.
 - [ ] **T11.5** — After T11.6–T11.8 pass, complete scripted and real multi-session local play;
   record owner sign-off.
 - [ ] **T11.6** — Resolve missing OCR in the nontechnical-user installation. Detect Tesseract

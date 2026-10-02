@@ -16,6 +16,8 @@ build/
 dist/
 **/build/
 **/dist/
+**/node_modules/
+**/*.tsbuildinfo
 *.egg-info/
 
 # Tooling/test caches
@@ -35,3 +37,4 @@ Thumbs.db
 # Local campaign state, uploaded books, and imported ruleset packs
 /storyteller_ai/backend/data/
 /storyteller_ai/data/
+/benchmarks/llm_load/results/

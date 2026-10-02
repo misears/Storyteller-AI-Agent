@@ -1,0 +1,30 @@
+id: demon-the-fallen
+version: 1.0.0
+name: Demon Structure Pack
+license: Proprietary project structure
+attribution: Self-authored structure; detailed rule text remains local to selected documents
+dice:
+  kind: pool_successes
+  default_expression: "{pool}d10>={difficulty}"
+  params:
+    ones_cancel: true
+    botch_on_net_ones: true
+attributes:
+  - {id: strength, label: Strength, group: physical, min: 1, max: 5}
+  - {id: dexterity, label: Dexterity, group: physical, min: 1, max: 5}
+  - {id: intelligence, label: Intelligence, group: mental, min: 1, max: 5}
+skills: []
+resources:
+  - {id: faith, label: Faith, min: 0, max: 10, default: 3}
+  - {id: torment, label: Torment, min: 0, max: 10, default: 0}
+checks: []
+turn_rules:
+  combat_turn_mode: initiative
+  actions_per_turn: {default: 1}
+chargen: []
+npc_tiers: []
+prompt_digest: >-
+  Use the shared Storyteller-classic d10 pool structure. Faith, Torment, and lore details are
+  ruleset-specific and must be resolved from the campaign's selected local sources.
+family: storyteller-classic
+origin: bundled

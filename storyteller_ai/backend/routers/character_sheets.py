@@ -8,7 +8,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from ..services.character_sheet_store import character_sheet_store
+from ..services.character_sheet_store import (
+    SheetConflictError, SheetValidationError, character_sheet_store,
+)
 
 router = APIRouter(prefix="/character-sheets", tags=["character-sheets"])
 
@@ -23,6 +25,8 @@ class CharacterSheetCreateRequest(BaseModel):
 class CharacterSheetUpdateRequest(BaseModel):
     name: Optional[str] = None
     fields: Optional[Dict[str, Any]] = None
+    expected_version: Optional[int] = None
+    reason: str = "sheet update"
 
 
 def _sheet_text_lines(sheet: Dict[str, Any]) -> List[str]:
@@ -142,7 +146,7 @@ def create_sheet(payload: CharacterSheetCreateRequest):
 def get_sheet(sheet_id: str):
     try:
         sheet = character_sheet_store.get_sheet(sheet_id)
-    except KeyError as exc:
+    except (KeyError, SheetValidationError) as exc:
         raise HTTPException(status_code=404, detail="Sheet not found") from exc
     return {"sheet": sheet}
 
@@ -154,9 +158,38 @@ def update_sheet(sheet_id: str, payload: CharacterSheetUpdateRequest):
             sheet_id=sheet_id,
             name=payload.name,
             fields=payload.fields,
+            expected_version=payload.expected_version,
+            reason=payload.reason,
         )
+    except SheetConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SheetValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Sheet not found") from exc
+    return {"sheet": sheet}
+
+
+@router.get("/{sheet_id}/history")
+def sheet_history(sheet_id: str):
+    try:
+        return {"history": character_sheet_store.list_history(sheet_id)}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Sheet not found") from exc
+
+
+class SheetRevertRequest(BaseModel):
+    expected_version: Optional[int] = None
+
+
+@router.post("/{sheet_id}/history/{version}/revert")
+def revert_sheet(sheet_id: str, version: int, payload: SheetRevertRequest = SheetRevertRequest()):
+    try:
+        sheet = character_sheet_store.revert_sheet(sheet_id, version, payload.expected_version)
+    except SheetConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (KeyError, SheetValidationError) as exc:
+        raise HTTPException(status_code=404, detail="Sheet or version not found") from exc
     return {"sheet": sheet}
 
 

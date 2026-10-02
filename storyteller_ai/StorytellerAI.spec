@@ -21,10 +21,14 @@ hiddenimports += collect_submodules("httpx")
 hiddenimports += collect_submodules("fitz")
 hiddenimports += collect_submodules("openai")
 hiddenimports += collect_submodules("anthropic")
+hiddenimports += collect_submodules("sqlalchemy")
+hiddenimports += collect_submodules("alembic")
 
 # Keep the bundled frontend next to the extracted executable resources.
 datas = [
     (str(frontend_dir), "frontend"),
+    (str(backend_dir / "persistence" / "migrations"), "backend/persistence/migrations"),
+    (str(backend_dir / "content"), "backend/content"),
 ]
 
 a = Analysis(

@@ -1,5 +1,8 @@
 {
     "copilot-auto-continue.masterEnabled": true,
     "copilot-auto-continue.smartAIEnabled": false,
-    "copilot-auto-continue.autoContinueEnabled": false
+    "copilot-auto-continue.autoContinueEnabled": false,
+    "python.analysis.extraPaths": [
+        "c:\\Users\\AI_DEV\\.vscode\\extensions\\polymatepteltd.marlin-controller-1.0.3\\dist"
+    ]
 }

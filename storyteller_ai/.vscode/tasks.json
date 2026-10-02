@@ -60,7 +60,6 @@
     },
     {
       "label": "Test + Lint",
-<<<<<<< HEAD
       "type": "shell",
       "command": "pwsh",
       "args": [
@@ -69,11 +68,6 @@
         "Bypass",
         "-File",
         "${workspaceFolder}/scripts/run_test_lint.ps1"
-=======
-      "dependsOn": [
-        "Run Tests",
-        "Lint (ruff)"
->>>>>>> cb5351ad94b7d8db2bca5574351621570b88fe74
       ],
       "group": "test",
       "presentation": {

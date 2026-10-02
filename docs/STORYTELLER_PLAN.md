@@ -2021,9 +2021,9 @@ recommended order is M12 → M13 (Q15).
 |---|---|---|
 | T0.1 | Owner answers open questions (§18). ADRs 0001–0005 accepted or amended | ADR status set to *Accepted* |
 | T0.2 | ✅ Delete `*-BlackDragon.*` duplicates (**done in this PR**, owner-approved) | No `*-BlackDragon*` files. Tests green (22 — the 9 removed tests were duplicates in `test_api-BlackDragon.py`) |
-| T0.3 | Purge runtime data + PDFs (owner-approved, Q4). **Before merging: back up `backend/data/documents/*.pdf` and `storyteller.db` outside the repo.** When other clones pull a commit that untracks files, git deletes those files there. Steps: `git rm --cached`, add to `.gitignore`, and create seed files at startup if missing. Then the owner rewrites history with `git filter-repo --path storyteller_ai/backend/data --invert-paths` and force-pushes (an agent cannot force-push); every other clone must re-clone. Afterwards, re-upload the PDFs through the app | Fresh clone boots with empty data. The PDFs are absent from all history. Tests use `tmp_path` data dirs, so running `pytest` leaves `git status` clean (today it modifies `storyteller.db`/`character_sheets.json` and adds PDFs under `data/documents/`). |
-| T0.4 | Add CI workflow (pytest + ruff, Python 3.12) | CI runs on PRs and is green |
-| T0.5 | Tighten CORS (configured origins; no `*` with credentials); default bind `127.0.0.1` | Test asserts CORS config |
+| T0.3 | ✅ Purge runtime data + PDFs (owner-approved, Q4). **Before merging: back up `backend/data/documents/*.pdf` and `storyteller.db` outside the repo.** When other clones pull a commit that untracks files, git deletes those files there. Steps: `git rm --cached`, add to `.gitignore`, and create seed files at startup if missing. Then the owner rewrites history with `git filter-repo --path storyteller_ai/backend/data --invert-paths` and force-pushes (an agent cannot force-push); every other clone must re-clone. Afterwards, re-upload the PDFs through the app | Fresh clone boots with empty data; tests leave `git status` clean. Owner-deferred: PDF-bearing GitHub PR #1 and #2 refs remain accessible pending GitHub Support cleanup. |
+| T0.4 | ✅ Add CI workflow (pytest + ruff, Python 3.12) | CI runs on PRs and is green |
+| T0.5 | ✅ Tighten CORS (configured origins; no `*` with credentials); default bind `127.0.0.1` | Test asserts CORS config |
 
 ### M1 — Persistence & event log
 

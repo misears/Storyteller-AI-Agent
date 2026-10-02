@@ -1,0 +1,23 @@
+id: freeform
+version: 1.0.0
+name: Freeform Storytelling
+license: Proprietary project structure
+attribution: Self-authored generic mechanics
+dice:
+  kind: sum_vs_target
+  default_expression: 1d20
+  params: {}
+attributes: []
+skills: []
+resources: []
+derived: {}
+checks: []
+turn_rules:
+  combat_turn_mode: freeform
+  actions_per_turn: {}
+chargen: []
+npc_tiers: []
+prompt_digest: >-
+  Resolve uncertain actions with a simple d20 check when the Storyteller decides a roll is
+  useful. Keep the fiction and player intent primary.
+origin: bundled

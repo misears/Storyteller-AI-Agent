@@ -65,6 +65,7 @@ class DocumentStore:
                     text TEXT NOT NULL,
                     path TEXT NOT NULL,
                     genre_tags TEXT NOT NULL DEFAULT '[]',
+                    page_chunks TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -77,6 +78,10 @@ class DocumentStore:
             if "genre_tags" not in columns:
                 connection.execute(
                     "ALTER TABLE documents ADD COLUMN genre_tags TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "page_chunks" not in columns:
+                connection.execute(
+                    "ALTER TABLE documents ADD COLUMN page_chunks TEXT NOT NULL DEFAULT '[]'"
                 )
             connection.commit()
 
@@ -118,8 +123,8 @@ class DocumentStore:
             for document_id, document in documents.items():
                 connection.execute(
                     """
-                    INSERT OR IGNORE INTO documents (document_id, title, text, path, genre_tags)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT OR IGNORE INTO documents (document_id, title, text, path, genre_tags, page_chunks)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
                         document_id,
@@ -127,6 +132,7 @@ class DocumentStore:
                         document.get("text", ""),
                         document.get("path", ""),
                         json.dumps(_normalize_genres(document.get("genres", []))),
+                        json.dumps([document.get("text", "")]),
                     ),
                 )
             connection.commit()
@@ -138,6 +144,7 @@ class DocumentStore:
         text: str,
         pdf_bytes: bytes,
         genres: List[str] | None = None,
+        page_chunks: List[str] | None = None,
     ) -> str:
         document_id = self._normalize_id(document_id)
         pdf_path = self.document_dir / document_id
@@ -147,8 +154,8 @@ class DocumentStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO documents (document_id, title, text, path, genre_tags)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO documents (document_id, title, text, path, genre_tags, page_chunks)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     document_id,
@@ -156,6 +163,7 @@ class DocumentStore:
                     text,
                     str(pdf_path.relative_to(self.base_dir)),
                     json.dumps(normalized_genres),
+                    json.dumps(page_chunks or [text]),
                 ),
             )
             connection.commit()
@@ -240,6 +248,39 @@ class DocumentStore:
             f"{doc['title']}\n{doc['text'][:1200]}"
             for doc in top_docs
         )
+
+    def retrieve_scoped(
+        self, query: str, document_ids: List[str], limit: int = 5,
+    ) -> List[Dict[str, object]]:
+        if not query.strip() or not document_ids:
+            return []
+        placeholders = ",".join("?" for _ in document_ids)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT document_id, title, text, page_chunks FROM documents "
+                f"WHERE document_id IN ({placeholders})",
+                document_ids,
+            ).fetchall()
+        query_tokens = _tokenize(query)
+        matches: List[tuple[int, Dict[str, object]]] = []
+        for row in rows:
+            try:
+                pages = json.loads(row["page_chunks"] or "[]")
+            except json.JSONDecodeError:
+                pages = []
+            if not isinstance(pages, list) or not pages:
+                pages = [row["text"]]
+            for page_number, page_text in enumerate(pages, start=1):
+                if not isinstance(page_text, str):
+                    continue
+                score = len(query_tokens.intersection(_tokenize(page_text)))
+                if score:
+                    matches.append((score, {
+                        "document_id": row["document_id"], "title": row["title"],
+                        "page": page_number, "snippet": page_text[:1200],
+                    }))
+        matches.sort(key=lambda item: item[0], reverse=True)
+        return [item for _, item in matches[:limit]]
 
 
 document_store = DocumentStore()
