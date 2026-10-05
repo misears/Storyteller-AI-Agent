@@ -28,6 +28,7 @@ Source: "output\StorytellerAI-Install\*"; DestDir: "{app}"; Flags: ignoreversion
 Name: "model4b"; Description: "Balanced: Qwen3 4B (about 2.5 GB download; recommended for most PCs)"; GroupDescription: "Local AI model:"; Flags: exclusive
 Name: "model8b"; Description: "Higher quality: Qwen3 8B (about 5.2 GB download; 8 GB GPU memory recommended)"; GroupDescription: "Local AI model:"; Flags: exclusive unchecked
 Name: "modelsmall"; Description: "Low memory: Qwen3 1.7B (about 1.4 GB download; simpler narration)"; GroupDescription: "Local AI model:"; Flags: exclusive unchecked
+Name: "ocrsupport"; Description: "Scanned-PDF OCR (Tesseract with English data; WinGet may ask for administrator approval)"; GroupDescription: "Optional PDF support:"; Flags: unchecked
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Launch.ps1"""; Description: "Open Storyteller AI"; Flags: postinstall nowait skipifsilent
@@ -38,6 +39,7 @@ Type: filesandordirs; Name: "{app}\.venv"
 Type: files; Name: "{userdesktop}\Storyteller AI.lnk"
 Type: files; Name: "{userprograms}\Storyteller AI\Storyteller AI.lnk"
 Type: files; Name: "{userprograms}\Storyteller AI\Repair Storyteller AI.lnk"
+Type: files; Name: "{userprograms}\Storyteller AI\Repair OCR for Storyteller AI.lnk"
 Type: dirifempty; Name: "{userprograms}\Storyteller AI"
 
 [Code]
@@ -81,7 +83,7 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  Model, Parameters: String;
+  Model, Parameters, OcrParameters: String;
   ExitCode: Integer;
 begin
   if CurStep = ssPostInstall then
@@ -98,5 +100,12 @@ begin
       RaiseException('The software or AI model setup did not finish. Read the setup log in ' +
         ExpandConstant('{localappdata}\StorytellerAI\logs') +
         '. Run Install.ps1 again from the installed folder or rerun this installer to retry.');
+    if WizardIsTaskSelected('ocrsupport') then
+    begin
+      OcrParameters := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\Install-OCR.ps1') + '" -Consent';
+      if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), OcrParameters,
+        ExpandConstant('{app}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0) then
+        MsgBox('Storyteller AI was installed, but OCR setup did not finish. Text-based PDFs still work. Run Repair OCR for Storyteller AI from the Start menu to try again.', mbInformation, MB_OK);
+    end;
   end;
 end;

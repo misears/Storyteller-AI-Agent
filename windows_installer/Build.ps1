@@ -16,7 +16,7 @@ $application = Join-Path $payload 'app'
 $wheels = Join-Path $payload 'wheels'
 if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
 $null = New-Item $application, $wheels -ItemType Directory -Force
-foreach ($script in @('Install.ps1', 'Launch.ps1', 'Setup.Common.ps1', 'Install.cmd', 'README.md')) {
+foreach ($script in @('Install.ps1', 'Install-OCR.ps1', 'Launch.ps1', 'Setup.Common.ps1', 'Install.cmd', 'README.md')) {
     Copy-Item (Join-Path $PSScriptRoot $script) $bundle
 }
 foreach ($folder in @('backend', 'frontend')) {

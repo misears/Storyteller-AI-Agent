@@ -24,6 +24,92 @@ function Find-Ollama {
     return $null
 }
 
+function Find-Tesseract {
+    $configured = $env:TESSERACT_CMD
+    if ($configured -and (Test-Path $configured)) { return $configured }
+    foreach ($candidate in @(
+        (Join-Path $env:ProgramFiles 'Tesseract-OCR\tesseract.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\Tesseract-OCR\tesseract.exe')
+    )) {
+        if (Test-Path $candidate) { return $candidate }
+    }
+    $command = Get-Command tesseract.exe -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+    return $null
+}
+
+function Test-TesseractLanguageOutput {
+    param([string[]]$Output, [int]$ExitCode)
+    if ($ExitCode -ne 0) { return @{ Ready = $false; Detail = 'Tesseract could not load its language data.' } }
+    if (-not ($Output -match '(?m)^eng\s*$')) {
+        return @{ Ready = $false; Detail = 'English OCR language data (eng.traineddata) is missing.' }
+    }
+    return @{ Ready = $true; Detail = 'English OCR language data is installed.' }
+}
+
+function Get-OcrSetupDecision {
+    param([bool]$Ready, [bool]$Consent, [string]$Answer)
+    if ($Ready) { return 'Ready' }
+    if ($Consent -or $Answer -ceq 'YES') { return 'Install' }
+    return 'Skip'
+}
+
+function Get-OcrFailureMessage {
+    param([string]$Reason)
+    return "OCR setup could not finish: $Reason Text-based PDFs still work. Select Repair OCR for Storyteller AI from the Start menu to retry."
+}
+
+function Get-TesseractInstallAction {
+    param([bool]$Ready, [string]$Executable, [bool]$WingetAvailable)
+    if ($Ready) { return 'Ready' }
+    if ($Executable) { return 'RepairLanguageData' }
+    if ($WingetAvailable) { return 'InstallPackage' }
+    return 'ManualInstall'
+}
+
+function Get-TesseractStatus {
+    $executable = Find-Tesseract
+    if (-not $executable) {
+        return @{ Ready = $false; Executable = $null; Detail = 'Tesseract OCR is not installed.' }
+    }
+    try {
+        $output = & $executable --list-langs 2>&1
+        $languageStatus = Test-TesseractLanguageOutput $output $LASTEXITCODE
+        if (-not $languageStatus.Ready) { return @{ Ready = $false; Executable = $executable; Detail = $languageStatus.Detail } }
+        return @{ Ready = $true; Executable = $executable; Detail = "Ready ($executable, English language data installed)." }
+    }
+    catch {
+        return @{ Ready = $false; Executable = $executable; Detail = "Tesseract could not be checked: $($_.Exception.Message)" }
+    }
+}
+
+function Install-Tesseract {
+    $status = Get-TesseractStatus
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    $action = Get-TesseractInstallAction $status.Ready $status.Executable ($null -ne $winget)
+    if ($action -eq 'Ready') {
+        Write-Host "Scanned-PDF OCR is ready. $($status.Detail)" -ForegroundColor Green
+        return
+    }
+    if ($action -eq 'RepairLanguageData') {
+        throw "$($status.Detail) Repair the English language data from the official Windows instructions: https://github.com/UB-Mannheim/tesseract/wiki/Install-additional-language-models"
+    }
+    if ($action -eq 'ManualInstall') {
+        throw 'Windows Package Manager is unavailable. Install Tesseract OCR with English data from https://github.com/UB-Mannheim/tesseract/wiki, then select Repair OCR for Storyteller AI.'
+    }
+    Write-Host 'Installing verified WinGet package UB-Mannheim.TesseractOCR.'
+    Write-Host 'WinGet verifies the downloaded installer against its package SHA-256. Windows may ask for administrator approval.'
+    & $winget.Source install --id UB-Mannheim.TesseractOCR --exact --source winget --accept-source-agreements --accept-package-agreements --interactive
+    if ($LASTEXITCODE -ne 0) {
+        throw "Tesseract installation did not finish (WinGet exit $LASTEXITCODE). Re-run Repair OCR for Storyteller AI or use https://github.com/UB-Mannheim/tesseract/wiki."
+    }
+    $status = Get-TesseractStatus
+    if (-not $status.Ready) {
+        throw "$($status.Detail) Use https://github.com/UB-Mannheim/tesseract/wiki to install English (eng) data, then select Repair OCR for Storyteller AI."
+    }
+    Write-Host "Scanned-PDF OCR is ready. $($status.Detail)" -ForegroundColor Green
+}
+
 function Find-Python312 {
     foreach ($key in @('HKCU:\Software\Python\PythonCore\3.12\InstallPath', 'HKLM:\Software\Python\PythonCore\3.12\InstallPath')) {
         if (-not (Test-Path $key)) { continue }
@@ -101,8 +187,7 @@ function Get-PreflightReport {
         $null = & $environmentPython -m pip check 2>$null
         $packagesReady = $LASTEXITCODE -eq 0
     }
-    $ocr = Get-Command tesseract.exe -ErrorAction SilentlyContinue
-    $ocrPath = Join-Path $env:ProgramFiles 'Tesseract-OCR\tesseract.exe'
+    $ocrStatus = Get-TesseractStatus
     @(
         "Processor: $cpu"
         "System memory: $memory GB"
@@ -114,7 +199,7 @@ function Get-PreflightReport {
         $(if ($packagesReady) { 'Python packages: no installed dependency conflicts detected; bundled versions will be verified.' } else { 'Python packages: missing or need checking; bundled packages will be installed automatically.' })
         $(if ($ollama) { 'Ollama: found; the existing installation will be reused.' } else { 'Ollama: missing; the included official installer will install it for your account.' })
         'AI model: a missing selected model will be downloaded (roughly 2-6 GB).'
-        $(if ($ocr -or (Test-Path $ocrPath)) { 'Optional scanned-PDF reader (Tesseract): found.' } else { 'Optional scanned-PDF reader (Tesseract): missing. Normal text PDFs work; scanned PDFs need separate OCR installation.' })
+        $(if ($ocrStatus.Ready) { "Scanned-PDF OCR: ready. $($ocrStatus.Detail)" } else { "Scanned-PDF OCR: $($ocrStatus.Detail) Text PDFs work without OCR. Choose the optional OCR setup task or install it later from Repair OCR for Storyteller AI." })
         ''
         'Allow at least 20 GB free space on both the installation and Windows profile drives.'
         'Internet is needed for the first model download unless the model is already installed.'

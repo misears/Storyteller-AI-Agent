@@ -1,4 +1,4 @@
-# Storyteller AI — Implementation and Phase Task Tracker
+1# Storyteller AI — Implementation and Phase Task Tracker
 
 This is the updateable checklist for bringing the existing app in line with
 [`STORYTELLER_PLAN.md`](./STORYTELLER_PLAN.md). The plan remains the source of truth for design,
@@ -11,18 +11,16 @@ availability. Unchecked tasks may be partially implemented, but are not accepted
 
 ## Design-section map
 
-The [original system design](../White%20Wolf%20Storyteller%20AI%20%E2%80%94%20Complete%20System%20Design%20Document.txt)
-supplies the seven section headings. The [setup task](../SETUP_STORYTELLER_TASK.md) documents
-the early backend skeleton. The later architecture plan and ADRs take precedence where these
-documents differ: local FastAPI/SQLite event log, React UI, Ollama-first model choice, and
-network play before Discord. PostgreSQL, ChromaDB, Celery, Redis, and Docker are not Phase 1
-prerequisites.
+The [original setup task](../SETUP_STORYTELLER_TASK.md) describes the first scaffold. The current
+project has since moved to the event-log architecture, React UI, Ollama-first model choice, and
+local-first delivery plan. PostgreSQL, ChromaDB, Celery, Redis, and Docker are not Phase 1
+dependencies.
 
-| Design section | Implementation milestones | Acceptance checkpoint |
+| Design area | Milestones | Current acceptance |
 | --- | --- | --- |
-| 1. Purpose and architecture | M0, M11 | Local-only release is signed off; adapters do not own game logic. |
+| 1. Architecture and local startup | M0, M1, M11 | Fresh local install uses loopback, SQLite, and the bundled UI without Node at runtime. |
 | 2. FastAPI skeleton and UI | M1, M5, M10 | Campaign flows work in the built web UI; legacy routes retire after parity. |
-| 3. Data schema | M1, M4, M6 | Events replay, sheets version, and saves resume or fork reliably. |
+| 3. LLM and tools | M5, M7, M9, T11.7–T11.9 | Providers use validated tools, bounded context, timeouts, and guided setup. |
 | 4. Prompt pack | M5, M7, M9 | All three GM modes use bounded context and server-approved tools. |
 | 5. PDF ingestion | M3, M10 | Selected PDFs produce cited, reviewable, playable packs without bundling books. |
 | 6. State engine | M2, M8, M9 | Dice/state are authoritative; up to ten local players stay in sync and isolated. |
@@ -40,7 +38,6 @@ switcher and turn endpoint T5.7; the two separately labeled rows below preserve 
   never bundle books, credentials, or long copyrighted passages.
 2. **FastAPI/UI:** Create, play, pause, resume, and inspect a campaign through the built React
   app. Two local windows show the correct committed events. Retire legacy pages/routes only
-  after parity tests pass; generated API types and packaged assets must work in the desktop build.
 3. **Data schema:** Replay projections from events; reject invalid or conflicting sheet edits;
   restart in a fresh process with identical state, chat/dice logs, prompt, and next roll. An
   older save forks without overwriting its source; export/import resumes equivalently.
@@ -61,7 +58,6 @@ switcher and turn endpoint T5.7; the two separately labeled rows below preserve 
 ## Current baseline
 
 The repository already has a FastAPI app, Ollama/mock LLM support, SQLite-backed document storage,
-JSON-file character sheets, PDF ingestion, runtime LLM settings, and three legacy HTML pages.
 The implementation work below evolves those parts toward the agreed campaign, ruleset, persistence,
 and UI design rather than starting from an empty project.
 
@@ -77,8 +73,7 @@ and UI design rather than starting from an empty project.
 ## Phase 1 — Single computer (M0–M11)
 
 ### [M0 — Decisions & cleanup](./STORYTELLER_PLAN.md#16-milestones--issue-sized-tasks)
-
-- [x] **T0.4** — Add and pass CI for pytest and ruff.
+  Ruff passes, and the Windows installer has been rebuilt with payload checks verified.
 - [x] **T0.5** — Configure CORS safely and default the server to loopback binding.
 
 ### M1 — Persistence & event log
@@ -221,7 +216,11 @@ and UI design rather than starting from an empty project.
 ### M11 — Hardening & local release
 
 - [x] **T11.1** — Add request limits, secret-leak checks, and loopback-only bind protection.
-  Added configurable request-size middleware plus reusable loopback and public-narration guards.
+  Added configurable request-size middleware that caps both declared and streamed bodies, plus
+  reusable loopback and public-narration guards. Desktop startup rejects non-loopback host
+  overrides. Player chat, dice, verification, and SSE reads filter GM-only/targeted visibility;
+  campaign SSE payloads omit RNG seed references. Forked chat/dice reads inherit only events up
+  to the saved sequence. Regression tests cover these boundaries.
 - [x] **T11.2** — Meet the planned resume and turn-overhead performance targets. The local
   harness measured 1,000-event replay at 0.0268 seconds and non-LLM persistence overhead at
   1.63 ms on the development machine.
@@ -229,7 +228,7 @@ and UI design rather than starting from an empty project.
   PyInstaller was built successfully with frontend assets, `backend/content`, and migrations.
 - [x] **T11.4** — Review the pack-authoring, player, and operator guides. Added focused guides for
   local operation, player workflows, and safe data-only pack authoring.
-- [ ] **T11.5** — After T11.6–T11.8 pass, complete scripted and real multi-session local play;
+- [ ] **T11.5** — After T11.6–T11.9 pass, complete scripted and real multi-session local play;
   record owner sign-off.
 - [ ] **T11.6** — Resolve missing OCR in the nontechnical-user installation. Detect Tesseract
   and required language data before installation and PDF import; offer a consent-based,
@@ -238,12 +237,38 @@ and UI design rather than starting from an empty project.
   explain why scanned PDFs cannot be read. Verify fresh install, existing OCR, missing
   language data, failed download/repair, and successful scanned-PDF extraction with page
   citations. Rebuild and smoke-test the installer with the completed OCR workflow.
+  **Progress (2026-10-05):** Added executable/language-data detection, actionable OCR status,
+  page-specific errors instead of silent scanned-page loss, stable blank-page citation slots,
+  and optional verified WinGet setup plus a Start-menu repair path. Focused OCR/API tests,
+  installer checks, full tests, and the installer rebuild pass. Installed the verified
+  WinGet package on Windows and confirmed English language data; a generated image-only PDF
+  produced the expected OCR text. An API integration test now uploads a mixed text/scanned
+  two-page fixture and verifies scoped retrieval cites page 2. Installer decision/failure
+  branches, including missing English data and the no-WinGet fallback, have non-destructive
+  checks. The setup executable has been rebuilt. Still required before checking this task:
+  exercise opt-in/decline/failure through the packaged wizard and missing-language repair on
+  a clean Windows install.
 - [ ] **T11.7** — Replace Ollama's fixed 30-second timeout with configurable connection/read
   timeouts and a bounded total generation/retry budget suitable for cold model loads and
   CPU/GPU inference. Show generation progress, cancellation, and actionable timeout errors;
   never commit partial state or duplicate a turn when retrying. Test a response taking more
   than 30 seconds, cold start, unreachable server, stalled generation, cancellation, and
   recovery. Document defaults and verify them in the installed app on the owner's laptop.
+  **Progress (2026-10-05):** Added bounded configurable connect (10 s), response-idle (600 s),
+  and total generation (900 s) budgets; connection-only retries (one by default); validated
+  settings via environment and `/settings/llm`; actionable 503/504 responses; elapsed-time
+  and generation-cancel UI; and stable `client_msg_id` turn retries with duplicate-response
+  recovery. Timeout, retry, API settings, cancellation, no-partial-commit, and duplicate-turn
+  tests pass. Still required: installed-app checks, a live Ollama cold load, and owner-laptop
+  validation. **Progress (2026-10-05):** Installed per-user Node.js LTS 24.19.0 (npm 11.17.0),
+  installed lockfile-pinned web dependencies, passed `npm run build`, and rebuilt the setup
+  executable with the production UI. Verified the installer payload checksums and embedded
+  frontend bundle. Exercised the actual HTTP client against loopback: a response arriving
+  after 31 seconds succeeded, a stalled response returned one actionable idle-timeout
+  without retry, and a closed port returned the connection error after exactly three
+  configured attempts. Live Ollama cold-load/model recovery and installed-owner-app checks
+  remain; the only local model is 18 GB, so it was not launched for a resource-intensive
+  smoke test.
 - [ ] **T11.8** — Complete and verify local game-state tool handling through the shared M5
   provider-neutral interface and validated handlers (T5.1–T5.6), not an installer-only
   workaround. Send Ollama tool schemas, parse calls, return tool results to the model, and
@@ -253,21 +278,73 @@ and UI design rather than starting from an empty project.
   narration plus exactly-once persisted updates, save/replay, invalid calls, interrupted
   turns, and reasoning/output-budget settings for the installed Qwen models. Rebuild the
   installer and test local play without cloud credentials.
+  **Progress (2026-10-05):** Added provider-neutral tool responses for Ollama native `/api/chat`,
+  OpenAI, and Anthropic, with a validated final fenced-action fallback for providers without
+  native tool calling. The GM loop enforces six rounds and twelve calls, rejects duplicate
+  call IDs, and dispatches only through JSON Schema/authority-checked game tools. Dice use
+  staged server RNG; tool audits, state patches, rolls, narration, and turn completion commit
+  atomically. State updates restore from events and are covered through save, fork, and replay.
+  Added Qwen-compatible context/output budgets and thinking controls. All 133 tests pass,
+  Ruff passes, and the Windows installer has been rebuilt with payload checks verified.
+  **Live smoke (2026-10-05):** The installed Qwen3 4B Thinking model returned a short
+  CPU-only Ollama response in 8.6 seconds with a 1K context and was unloaded afterward.
+  With the campaign prompt and native tools, the Thinking tag exhausted its 512-token
+  response before calling a tool; a larger-budget run also failed to complete the turn.
+  The app safely declined to commit either incomplete turn. Downloaded `qwen3:4b-instruct`
+  and ran the full campaign path on a temporary CPU-only Ollama server: it called
+  `roll_dice`, received the server result, narrated it, and committed the tool audit, roll,
+  chat, and turn-completion events. Elapsed time was 112 seconds on the i7-8550U. Still
+  required: live fallback testing with a non-tool model, owner-installed-app validation, and
+  packaged local play without cloud credentials. The temporary CPU server was stopped.
+- [ ] **T11.9** — Add first-run AI setup to the installed app so users do not need terminal or
+  `.env` configuration. Provide local Ollama / cloud-provider choice, model listing and
+  install status, guided model download, and Auto / CPU-only inference. CPU-only must launch
+  an app-owned Ollama child process on a dedicated loopback port; detect and reuse existing
+  Ollama for Auto mode, and never kill or silently reconfigure a user-owned Ollama process.
+  Start/stop only the process owned by Storyteller. Allow OpenAI/Anthropic API-key entry and
+  verify the selected provider. Store keys using Windows Credential Manager or DPAPI; never
+  return them to the UI, write them to `.env`, SQLite, campaign events, logs, or installer
+  artifacts. Keep secrets out of error details. Test fresh setup, existing Ollama, CPU-only
+  startup, model inventory/download/cancel/failure, cloud key save/masking/verification,
+  process cleanup, and second-run settings persistence. Rebuild and smoke-test the installer.
+  **Progress (2026-10-05):** Added the React AI setup panel for Ollama/OpenAI/Anthropic,
+  Auto/CPU-only selection, installed model inventory, download progress/cancel, provider tests,
+  and write-only cloud-key entry. Preferences persist separately from DPAPI-protected provider
+  keys; setup/status responses expose only configured booleans. Auto reuses the default Ollama
+  service, CPU mode starts an owned child on a fresh loopback port, and shutdown stops only that
+  child. The Windows DPAPI protect/unprotect round trip, provider-error redaction, secret-free
+  API responses, process ownership, startup model reconciliation, and model defaults are covered.
+  Full tests pass (160 passed, 1 skipped), Ruff and the production web build pass, and the rebuilt
+  installer payload hashes and secret/config-file exclusion checks pass. A real Qwen CPU-only
+  inference succeeded on a fresh app-owned Ollama port, and the child was stopped afterward;
+  the existing Ollama/model API flow returned complete without downloading an already-installed
+  model. Fake-transport tests cover pull progress, cancellation, and redacted failure, plus cloud
+  verification success/error handling and service-restart preference persistence. The generated
+  installer payload was launched without installing, and its bundled UI/API loaded with isolated
+  data/config paths and reused the existing Ollama. Still required: a clean Windows install/wizard
+  acceptance run and live cloud authentication; no live provider key was available or used.
+
+**Repository cleanup (2026-10-05):** Removed the old bootstrap generator and batch scaffolders
+that could overwrite live code with empty/prototype files, plus the unreferenced simulation/state
+stubs. Replaced the active GM protocol's unfinished JSON examples with tool-only rules, validated
+the legacy patch path, wired ruleset navigation and save loading, and made the SSE route remain
+live with reconnect cursors and heartbeats. The documented test/lint wrapper now works when run
+from workspace root and restores its caller's directory and `PYTHONPATH`.
 
 **Phase 1 complete gate:** Python tests and ruff, pack validation, migrations, replay, scripted
 tool-loop, PDF import, and multi-window UI checks pass. Record 1,000-turn resume (< 1 s) and
 non-LLM turn overhead (< 100 ms) measurements, even when performance CI is non-blocking. Smoke
 test the packaged app without Node installed. Run one full scripted session and a real
 multi-session campaign covering saves/forks, sheets, rules lookup/import, model switching,
-safety controls, and a second window. T11.6–T11.8 are required local-release blockers: the
-installed app must pass OCR setup/repair, slow-generation recovery, and local state-tool
-checks before sign-off. T11.5 needs owner confirmation that local play works as
+safety controls, and a second window. T11.6–T11.9 are required local-release blockers: the
+installed app must pass OCR setup/repair, slow-generation recovery, local state-tool checks,
+and guided AI setup before sign-off. T11.5 needs owner confirmation that local play works as
 desired; only then mark Phase 1 complete and begin M12. An optional live-LLM smoke test runs
 on the owner's machine; CI uses a scripted provider.
 
 ## Deferred until Phase 1 sign-off
 
-Do not start M12 or M13 until T11.6–T11.8 have passed and T11.5 is complete. Network play comes
+Do not start M12 or M13 until T11.6–T11.9 have passed and T11.5 is complete. Network play comes
 before Discord.
 
 ### M12 — Network play (Phase 2)

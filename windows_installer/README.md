@@ -46,17 +46,23 @@ folder and shortcuts manually after closing the application. Keep campaign data
 unless you deliberately want to delete it.
 
 Optional dependency: Tesseract OCR is needed only for scanned/image-only PDFs.
-Setup reports when it is missing; it does not install it. Text PDFs still work.
+The installer offers optional OCR support; select the scanned-PDF OCR task to install
+the exact `UB-Mannheim.TesseractOCR` WinGet package. WinGet verifies the package hash,
+and Windows may request administrator approval. The ZIP installer asks before opting
+in. OCR errors include a page number and repair guidance; text PDFs work without OCR.
+Choose **Repair OCR for Storyteller AI** from the Start menu to check or retry later.
+If WinGet or administrator approval is unavailable, use the linked official Windows
+instructions and include English (`eng`) language data. No manual PATH edits are needed.
 
 Windows may warn about an unsigned Storyteller installer. Release signing is
 the distributor's responsibility; verify the source before running it.
 
 ## For the person building the installer
 
-All packaging code and generated artifacts are isolated in this folder. The
-existing application, build scripts, development environment, and campaign
-data are not modified. No existing `.env`, API keys, virtual environments,
-document uploads, or backend data are included in the distributable.
+Packaging code and generated artifacts are isolated in this folder. Running the
+build does not modify source, development environment, or campaign data. No
+existing `.env`, API keys, virtual environments, document uploads, or backend
+data are included in the distributable.
 
 1. From the workspace root run:
 
@@ -110,7 +116,14 @@ spaces, launch/browser health, repair, upgrade, uninstall, and preserved data.
 GPU performance and model download/generation require a real target-machine
 test. Silent EXE setup still requires network for missing AI components.
 
-Known application limitations remain unchanged: Ollama narration currently has
-a 30-second request timeout and no game-state tool-call parsing. Installer
-verification uses a longer timeout, but that does not change play-time behavior.
+Ollama defaults to 10 seconds to connect, 600 seconds between response data, and
+900 seconds for the full generation, with one retry for connection failures only.
+Native tool calls use an 8K context, up to 800 output tokens, and Qwen thinking
+disabled by default; these can be configured through the local LLM settings API or `.env`.
+The play screen shows elapsed time, allows cancellation during generation, and
+preserves the action for an idempotent retry. Campaign turns use a validated,
+bounded tool loop; dice/state/tool audit and final narration commit atomically.
+Configure timeout, context, output, and thinking values through the local LLM
+settings endpoint or `.env`; see `OLLAMA_SETUP.md` for bounds. Live Qwen and
+owner-installed-app validation remains tracked by T11.8.
 This installer does not claim local/cloud feature parity or instant CPU replies.

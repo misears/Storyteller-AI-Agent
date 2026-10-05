@@ -95,6 +95,12 @@ OLLAMA_MODEL=llama2:7b
 ```
 Must match a model you've downloaded (see `ollama list`)
 
+Slow local inference has bounded defaults: 10 seconds to connect, 600 seconds without
+a response, and 900 seconds total. To tune them, set `OLLAMA_CONNECT_TIMEOUT`,
+`OLLAMA_READ_TIMEOUT`, or `OLLAMA_TOTAL_TIMEOUT` in `.env`. The play screen shows
+elapsed generation time and allows cancellation; cancelling does not create a turn.
+See [OLLAMA_SETUP.md](./OLLAMA_SETUP.md#timeouts-and-cancellation) for limits and retries.
+
 ---
 
 ## Troubleshooting

@@ -2,13 +2,40 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterator
 
-from sqlalchemy import Connection, Engine, func, select
+from sqlalchemy import Connection, Engine, and_, false, func, or_, select
 
 from ..models.campaign import Actor
 from ..models.state import Event
 from .db import create_campaign_engine
 from .projectors import project_event
 from .tables import branches, events
+
+
+def branch_lineage_filter(connection: Connection, campaign_id: str, branch_id: str, table):
+    clauses = []
+    current_id: str | None = branch_id
+    inherited_through: int | None = None
+    while current_id is not None:
+        branch = connection.execute(select(branches).where(
+            branches.c.id == current_id,
+            branches.c.campaign_id == campaign_id,
+        )).mappings().one_or_none()
+        if branch is None:
+            break
+        conditions = [table.c.branch_id == current_id]
+        if inherited_through is not None:
+            conditions.append(table.c.seq <= inherited_through)
+        clauses.append(and_(*conditions))
+        parent_id = branch["parent_branch_id"]
+        if parent_id is None:
+            break
+        forked_at_seq = int(branch["forked_at_seq"] or 0)
+        inherited_through = (
+            forked_at_seq if inherited_through is None
+            else min(inherited_through, forked_at_seq)
+        )
+        current_id = parent_id
+    return or_(*clauses) if clauses else false()
 
 
 class EventWriter:

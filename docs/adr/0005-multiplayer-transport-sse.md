@@ -18,8 +18,10 @@ Owner decision (Q1): run on a **single computer** first (Phase 1), then extend t
    `client_msg_id`. It returns `202` + `turn_id` (or waits with `?wait=true`).
 2. All committed events are pushed via **Server-Sent Events** at `GET /campaigns/{id}/stream`, using a
    `StreamingResponse`. The SSE `id` is the event seq, so clients resume with `Last-Event-ID`.
-3. A `Broadcaster` filters each event by **visibility** (public / GM-only / specific players)
-   per subscriber, and sends heartbeats every 15 s.
+3. The stream reads committed events after the subscriber's cursor, filters each event by
+   **visibility** (public / GM-only / specific players), and sends heartbeats every 15 s. The
+   current local implementation polls the SQLite event log while the connection remains open;
+   an in-process broadcaster can replace polling if subscriber counts make it necessary.
 4. The same stream serves every phase:
    - **Phase 1:** multiple windows on one machine, e.g. a player view and a GM view.
    - **Phase 2:** each player's device.
@@ -33,8 +35,9 @@ Owner decision (Q1): run on a **single computer** first (Phase 1), then extend t
 - ✅ No new dependency. Works through proxies. Trivial reconnect/resume thanks to event seqs.
 - ✅ The same event log serves both history (`GET /chat`) and live updates.
 - ⚠️ One-way channel; typing indicators and presence need a small `POST` or a later WebSocket.
-- ⚠️ In-process broadcaster assumes a single server process (fine for local/LAN; hosted scale-out
-  would add Redis pub/sub or Postgres `LISTEN/NOTIFY`).
+- ⚠️ Persistent streams poll the local SQLite event log. If subscriber counts grow, replace the
+   polling loop with an in-process broadcaster; hosted scale-out would add Redis pub/sub or Postgres
+   `LISTEN/NOTIFY`.
 
 ## Alternatives considered
 

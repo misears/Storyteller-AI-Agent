@@ -73,7 +73,7 @@ def test_rebuild_matches_live_projections(store):
         assert connection.execute(select(chat_messages.c.data)).scalar_one() == live_message
 
 
-def test_turn_service_recovers_interrupted_resolution(store):
+def test_turn_service_rolls_back_interrupted_resolution_atomically(store):
     service = TurnService(store)
 
     def crash_resolution(writer, turn_id):
@@ -83,16 +83,14 @@ def test_turn_service_recovers_interrupted_resolution(store):
     with pytest.raises(RuntimeError, match="resolution interrupted"):
         asyncio.run(service.run(
             "campaign-1", "branch-1", Actor(kind="player", id="player-1"),
-            "Cross the bridge", [{"total": 12}], crash_resolution,
+            "Cross the bridge", [], crash_resolution,
         ))
 
     history = store.read("campaign-1")
-    assert [event.type for event in history] == ["message.posted", "turn.started", "dice.rolled"]
-    assert service.recover_incomplete("campaign-1", "another-branch") == []
-    assert service.recover_incomplete("campaign-1", "branch-1") == [history[1].turn_id]
-    assert store.read("campaign-1")[-1].type == "turn.interrupted"
+    assert history == []
+    assert service.recover_incomplete("campaign-1", "branch-1") == []
     with store.engine.connect() as connection:
-        assert connection.scalar(select(turns.c.status)) == "interrupted"
+        assert connection.scalar(select(turns.c.status)) is None
         assert connection.scalar(select(scenes.c.id)) is None
 
 

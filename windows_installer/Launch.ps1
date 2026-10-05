@@ -6,13 +6,10 @@ Start-Transcript -Path (Join-Path $logs 'launch.log') -Append | Out-Null
 try {
     $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
     if (-not (Test-Path $python)) { throw 'The private Python environment is missing. Run Repair Storyteller AI from the Start menu.' }
-    $ollama = Find-Ollama
-    if (-not $ollama) { throw 'The AI software is missing. Run Repair Storyteller AI from the Start menu.' }
-    if (-not (Test-OllamaReady)) { $null = Start-Process $ollama -ArgumentList 'serve' -WindowStyle Hidden -PassThru }
-    Wait-OllamaReady
     $env:STORYTELLER_DATA_DIR = Join-Path $env:LOCALAPPDATA 'StorytellerAI\data'
-    $ocr = Join-Path $env:ProgramFiles 'Tesseract-OCR\tesseract.exe'
-    if (Test-Path $ocr) { $env:TESSERACT_CMD = $ocr }
+    $env:STORYTELLER_MANAGE_AI = '1'
+    $ocr = Find-Tesseract
+    if ($ocr) { $env:TESSERACT_CMD = $ocr }
     $env:STORYTELLER_HOST = '127.0.0.1'
     $listener = Get-NetTCPConnection -State Listen -LocalPort 8000 -ErrorAction SilentlyContinue
     if ($listener) {

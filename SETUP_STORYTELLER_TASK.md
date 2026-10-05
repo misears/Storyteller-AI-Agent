@@ -1,6 +1,11 @@
 # Storyteller AI — Project Setup Task
 
-This task defines the full directory structure and required files for the Storyteller AI backend, including:
+This is the original project scaffold specification, retained as historical design context. It is
+not an active setup script or implementation checklist; `docs/STORYTELLER_PLAN.md` and
+`docs/IMPLEMENTATION_TASKS.md` describe the current architecture and delivery status. The old
+placeholder generators have been removed so they cannot overwrite the implemented backend.
+
+The original task proposed a directory structure and required files, including:
 
 - GM Loop + LLM wiring
 - State update extraction

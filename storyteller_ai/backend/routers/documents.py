@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from ..services.document_store import document_store
-from ..services.pdf_ingest import extract_pages_from_pdf, get_ocr_runtime_status
+from ..services.pdf_ingest import OCRUnavailableError, extract_pages_from_pdf, get_ocr_runtime_status
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 logger = logging.getLogger(__name__)
@@ -106,7 +106,10 @@ async def upload_document(
             raise HTTPException(status_code=400, detail=f"Only PDF files are supported: {file.filename}")
 
         contents = await file.read()
-        page_chunks = extract_pages_from_pdf(io.BytesIO(contents))
+        try:
+            page_chunks = extract_pages_from_pdf(io.BytesIO(contents))
+        except OCRUnavailableError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         text = "\n\n".join(page_chunks)
         document_id = document_store.add_document(
             document_id=file.filename,

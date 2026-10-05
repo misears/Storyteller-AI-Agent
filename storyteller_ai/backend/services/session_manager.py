@@ -64,10 +64,15 @@ class SessionManager:
             }
             engine = create_campaign_engine()
             try:
-                characters = [event.payload["character"] for event in EventStore(engine).read(session_id)
-                              if event.type == "character.created"]
+                events = EventStore(engine).read(session_id)
             finally:
                 engine.dispose()
+            characters = []
+            for event in events:
+                if event.type == "character.created":
+                    characters.append(event.payload["character"])
+                elif event.type == "game_state.updated":
+                    loop.orchestrator.apply_state_update(event.payload["patch"])
             loop.orchestrator.state["characters"] = characters
             self.sessions[session_id] = {
                 "mode": campaign.mode.value, "title": campaign.title,

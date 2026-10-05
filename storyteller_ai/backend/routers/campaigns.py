@@ -1,6 +1,8 @@
 from typing import Literal
+import asyncio
+import time
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from ..models.campaign import Campaign, GMMode
@@ -13,6 +15,9 @@ from ..services.chat_service import chat_service
 from ..services.dice_service import dice_service
 from ..services.document_store import document_store
 from ..services.campaign_turn_service import campaign_turn_service
+from ..services.campaign_turn_service import TurnConflictError
+from ..services.llm_client import LLMTimeoutError, OllamaConnectionError
+from ..engines.gm_loop import ToolLoopLimitError
 from ..services.save_service import save_service
 from ..services.bible_service import bible_service
 from ..services.session_zero_service import session_zero_service
@@ -157,11 +162,12 @@ def get_chat_messages(
     campaign_id: str, after_seq: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100), session_id: str | None = None,
     scene_id: str | None = None, speaker_kind: str | None = None,
+    viewer: Literal["player", "gm"] = "player", player_id: str | None = None,
 ):
     campaign = get_campaign(campaign_id)
     messages, next_after_seq = chat_service.list(
         campaign_id, campaign.active_branch_id, after_seq, limit,
-        session_id, scene_id, speaker_kind,
+        session_id, scene_id, speaker_kind, viewer, player_id,
     )
     return ChatPage(messages=messages, next_after_seq=next_after_seq)
 
@@ -183,17 +189,21 @@ def roll_campaign_dice(campaign_id: str, payload: DiceRollRequest):
 def get_campaign_dice(
     campaign_id: str, after_seq: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100), character_id: str | None = None,
+    viewer: Literal["player", "gm"] = "player", player_id: str | None = None,
 ):
     campaign = get_campaign(campaign_id)
-    rolls, next_after_seq = dice_service.list(campaign, after_seq, limit, character_id)
+    rolls, next_after_seq = dice_service.list(campaign, after_seq, limit, character_id, viewer, player_id)
     return DicePage(rolls=rolls, next_after_seq=next_after_seq)
 
 
 @router.get("/{campaign_id}/dice/{roll_id}/verify")
-def verify_campaign_dice(campaign_id: str, roll_id: str):
+def verify_campaign_dice(
+    campaign_id: str, roll_id: str, viewer: Literal["player", "gm"] = "player",
+    player_id: str | None = None,
+):
     campaign = get_campaign(campaign_id)
     try:
-        return dice_service.verify(campaign, roll_id)
+        return dice_service.verify(campaign, roll_id, viewer, player_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -207,9 +217,27 @@ def lookup_campaign_rules(campaign_id: str, payload: RuleLookupRequest):
 @router.post("/{campaign_id}/turns")
 async def submit_campaign_turn(campaign_id: str, payload: CampaignTurnRequest):
     campaign = get_campaign(campaign_id)
-    return await campaign_turn_service.submit(
-        campaign, payload.content, Actor(kind="player", id=payload.player_id),
-    )
+    try:
+        return await campaign_turn_service.submit(
+            campaign,
+            payload.content,
+            Actor(kind="player", id=payload.player_id),
+            client_msg_id=payload.client_msg_id,
+        )
+    except LLMTimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except OllamaConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except TurnConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ToolLoopLimitError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/{campaign_id}/turns/{client_msg_id}/cancel")
+async def cancel_campaign_turn(campaign_id: str, client_msg_id: str):
+    cancelled = campaign_turn_service.cancel(campaign_id, client_msg_id)
+    return {"cancelled": cancelled, "status": "cancelled" if cancelled else "finishing"}
 
 
 @router.post("/{campaign_id}/saves")
@@ -311,20 +339,50 @@ def select_campaign_character(campaign_id: str, player_id: str, payload: Charact
 
 
 @router.get("/{campaign_id}/stream")
-def stream_campaign_events(campaign_id: str, last_event_id: int = 0, viewer: Literal["player", "gm"] = "player"):
+def stream_campaign_events(
+    request: Request,
+    campaign_id: str, last_event_id: int = Query(default=0, ge=0),
+    viewer: Literal["player", "gm"] = "player", player_id: str | None = None,
+    last_event_header: str | None = Header(default=None, alias="Last-Event-ID"),
+):
     campaign = get_campaign(campaign_id)
-    engine = create_campaign_engine()
-    try:
-        events = EventStore(engine).read(campaign.id, campaign.active_branch_id, last_event_id)
-    finally:
-        engine.dispose()
+    if last_event_header:
+        try:
+            last_event_id = max(last_event_id, int(last_event_header.split(".", 1)[0]))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid Last-Event-ID header") from exc
+    async def generate():
+        cursor = last_event_id
+        heartbeat_at = time.monotonic()
+        while not await request.is_disconnected():
+            engine = create_campaign_engine()
+            try:
+                events = EventStore(engine).read(campaign.id, campaign.active_branch_id, cursor)
+            finally:
+                engine.dispose()
+            for event in events:
+                cursor = max(cursor, event.seq)
+                payload = event.payload
+                visibility = payload.get("visibility", {}) if isinstance(payload, dict) else {}
+                if event.type == "dice.rolled" and isinstance(payload, dict):
+                    visibility = payload.get("roll", {}).get("visibility", visibility)
+                if viewer != "gm":
+                    scope = visibility.get("scope", "public")
+                    if scope == "gm_only":
+                        continue
+                    if scope == "players" and (not player_id or player_id not in visibility.get("player_ids", [])):
+                        continue
+                if event.type in {"campaign.created", "campaign.configured"} and isinstance(payload, dict):
+                    campaign_data = payload.get("campaign")
+                    if isinstance(campaign_data, dict):
+                        public_campaign = {key: value for key, value in campaign_data.items() if key != "rng_seed_ref"}
+                        payload = {**payload, "campaign": public_campaign}
+                yield f"id: {event.seq}\nevent: {event.type}\ndata: {json.dumps(payload)}\n\n"
 
-    def generate():
-        for event in events:
-            payload = event.payload
-            visibility = payload.get("visibility", {}) if isinstance(payload, dict) else {}
-            if visibility.get("scope") == "gm_only" and viewer != "gm":
-                payload = {"visibility": {"scope": "gm_only"}, "redacted": True}
-            yield f"id: {event.seq}\nevent: {event.type}\ndata: {json.dumps(payload)}\n\n"
+            now = time.monotonic()
+            if now - heartbeat_at >= 15:
+                heartbeat_at = now
+                yield f"id: {cursor}\nevent: heartbeat\ndata: {{}}\n\n"
+            await asyncio.sleep(0.5)
 
     return StreamingResponse(generate(), media_type="text/event-stream")

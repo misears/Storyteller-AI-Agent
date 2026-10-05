@@ -100,6 +100,12 @@ OLLAMA_URL=http://127.0.0.1:11434
 # Model name (must match what you pulled)
 OLLAMA_MODEL=llama2:7b
 
+# Local inference budgets (seconds); see "Timeouts and cancellation" below
+OLLAMA_CONNECT_TIMEOUT=10
+OLLAMA_READ_TIMEOUT=600
+OLLAMA_TOTAL_TIMEOUT=900
+OLLAMA_CONNECT_RETRIES=1
+
 # Optional: disable OpenAI/Anthropic keys when using Ollama
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
@@ -137,6 +143,47 @@ Invoke-WebRequest -Uri $uri -Method Post -Body $body -ContentType "application/j
 
 ## Troubleshooting
 
+### Timeouts and cancellation
+
+Ollama uses a 10-second connection timeout, a 600-second response-idle timeout,
+and a 900-second total generation budget by default. Only connection failures
+retry, at most once. A read timeout is not retried because Ollama may still be
+generating. When a budget expires, the app reports that the turn was not
+committed. The play screen shows elapsed time and offers a cancel button during
+generation; cancellation is disabled once the response is being saved. Failed
+actions remain in the composer and reuse their request ID on retry, so a lost
+success response cannot create a duplicate turn.
+
+Set `OLLAMA_CONNECT_TIMEOUT`, `OLLAMA_READ_TIMEOUT`, `OLLAMA_TOTAL_TIMEOUT`, or
+`OLLAMA_CONNECT_RETRIES` in `.env` to change defaults. Timeouts are bounded to
+1-120 seconds for connection, 1-1800 seconds for idle response, and 1-3600
+seconds total; connect retries are limited to 0-3. These variables are read on
+startup. The local `PUT /settings/llm` endpoint can adjust the same values for
+the current process. For a slow CPU model, increase the total budget while
+keeping it above the read timeout.
+
+Native `/api/chat` tool requests also expose `OLLAMA_CONTEXT_WINDOW` (default
+8192 tokens), `OLLAMA_MAX_OUTPUT_TOKENS` (default 800), and `OLLAMA_THINK`.
+Context is bounded to 1,024-131,072 tokens; output is bounded to 64-8,192
+tokens. `OLLAMA_THINK` accepts `false`, `true`, `low`, `medium`, or `high`;
+available thinking modes depend on the model. Qwen3 supports `false` to suppress
+reasoning output, which is the default. Keep the context/output budget within
+the model's available memory, particularly on an 8 GB GPU.
+
+### Game tools
+
+Campaign turns send registered tool schemas to Ollama and accept at most 6 tool
+rounds and 12 calls per turn. The server validates each call's JSON schema and
+authority before execution. Dice are evaluated with the server's branch RNG;
+state patches and tool audit events remain staged until final narration is ready,
+then commit atomically with the player action, rolls, and GM response. A timeout,
+cancellation, invalid loop limit, or failed generation therefore cannot leave a
+partial tool-driven turn. Saved branches replay committed state-patch events.
+
+Models without native tool support use only a final fenced `storyteller-actions`
+or legacy `json` action block. The same server validation applies, and the model
+receives tool results before it narrates. Plain text is never mined for actions.
+
 ### Ollama server not responding
 ```powershell
 # Check if Ollama is running
@@ -159,10 +206,12 @@ ollama pull llama2:7b
 ```
 
 ### Slow inference
-- This is normal for CPU-only inference on 8B models
-- First request takes ~30-60 seconds to warm up
-- Subsequent requests in same session are faster
-- Consider GPU acceleration if available
+- This is normal for CPU-only inference and larger models.
+- The play screen shows generation time. Cancel if needed; a cancelled generation
+    does not create a turn event.
+- Increase the bounded total timeout for slow CPU models. Keep in mind that a
+    read timeout is an idle interval, while the total timeout covers the request.
+- Consider a smaller model if responses regularly exceed your configured budget.
 
 ### High memory usage
 - 8B models need ~16GB RAM on CPU

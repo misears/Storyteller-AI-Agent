@@ -17,6 +17,22 @@ foreach ($file in Get-ChildItem $PSScriptRoot -Filter '*.ps1') {
 Assert-Equal (Get-RecommendedModel 64 8) 'qwen3:8b'
 Assert-Equal (Get-RecommendedModel 16 0) 'qwen3:4b'
 Assert-Equal (Get-RecommendedModel 4 0) 'qwen3:1.7b'
+Assert-Equal (Test-TesseractLanguageOutput @('List of available languages:', 'eng', 'fra') 0).Ready $true
+Assert-Equal (Test-TesseractLanguageOutput @('List of available languages:', 'fra') 0).Ready $false
+Assert-Equal (Test-TesseractLanguageOutput @('error') 1).Ready $false
+Assert-Equal (Get-OcrSetupDecision $false $false 'NO') 'Skip'
+Assert-Equal (Get-OcrSetupDecision $false $false 'YES') 'Install'
+Assert-Equal (Get-OcrSetupDecision $false $true '') 'Install'
+Assert-Equal (Get-OcrSetupDecision $true $true 'NO') 'Ready'
+$repairAction = Get-TesseractInstallAction $false 'C:\Tesseract\tesseract.exe' $true
+Assert-Equal $repairAction 'RepairLanguageData'
+Assert-Equal (Get-TesseractInstallAction $false $null $false) 'ManualInstall'
+Assert-Equal (Get-TesseractInstallAction $false $null $true) 'InstallPackage'
+Assert-Equal (Get-TesseractInstallAction $true 'C:\Tesseract\tesseract.exe' $true) 'Ready'
+$failureMessage = Get-OcrFailureMessage 'WinGet could not start.'
+if ($failureMessage -notmatch 'Text-based PDFs still work' -or $failureMessage -notmatch 'Repair OCR') {
+    throw 'The OCR failure path must preserve text-PDF functionality and provide a repair action.'
+}
 
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
 $null = New-Item $temporary -ItemType Directory

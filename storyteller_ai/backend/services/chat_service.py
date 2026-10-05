@@ -1,11 +1,11 @@
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import and_, exists, func, or_, select
 
 from ..models.campaign import Actor
 from ..models.chat import ChatMessage, Visibility
 from ..persistence.db import create_campaign_engine
-from ..persistence.event_store import EventStore
+from ..persistence.event_store import EventStore, branch_lineage_filter
 from ..persistence.tables import chat_messages
 
 
@@ -46,21 +46,36 @@ class ChatService:
         self, campaign_id: str, branch_id: str, after_seq: int = 0,
         limit: int = 50, session_id: str | None = None,
         scene_id: str | None = None, speaker_kind: str | None = None,
+        viewer: str = "player", player_id: str | None = None,
     ) -> tuple[list[ChatMessage], int | None]:
         engine = create_campaign_engine()
         try:
-            query = select(chat_messages.c.data).where(
-                chat_messages.c.campaign_id == campaign_id,
-                chat_messages.c.branch_id == branch_id,
-                chat_messages.c.seq > after_seq,
-            )
-            if session_id is not None:
-                query = query.where(chat_messages.c.session_id == session_id)
-            if scene_id is not None:
-                query = query.where(chat_messages.c.scene_id == scene_id)
-            if speaker_kind is not None:
-                query = query.where(chat_messages.c.speaker_kind == speaker_kind)
             with engine.connect() as connection:
+                query = select(chat_messages.c.data).where(
+                    chat_messages.c.campaign_id == campaign_id,
+                    branch_lineage_filter(connection, campaign_id, branch_id, chat_messages),
+                    chat_messages.c.seq > after_seq,
+                )
+                if session_id is not None:
+                    query = query.where(chat_messages.c.session_id == session_id)
+                if scene_id is not None:
+                    query = query.where(chat_messages.c.scene_id == scene_id)
+                if speaker_kind is not None:
+                    query = query.where(chat_messages.c.speaker_kind == speaker_kind)
+                if viewer != "gm":
+                    scope = chat_messages.c.data["visibility"]["scope"].as_string()
+                    visible_scopes = [scope == "public"]
+                    if player_id:
+                        recipients = func.json_each(
+                            chat_messages.c.data, "$.visibility.player_ids",
+                        ).table_valued("key", "value").alias("chat_recipients")
+                        visible_scopes.append(and_(
+                            scope == "players",
+                            exists(select(1).select_from(recipients).where(
+                                recipients.c.value == player_id,
+                            )),
+                        ))
+                    query = query.where(or_(*visible_scopes))
                 data = connection.scalars(query.order_by(chat_messages.c.seq).limit(limit + 1)).all()
             messages = [ChatMessage.model_validate(item) for item in data[:limit]]
             next_after_seq = messages[-1].seq if len(data) > limit else None

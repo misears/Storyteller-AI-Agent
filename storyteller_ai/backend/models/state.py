@@ -72,6 +72,7 @@ class GameState(BaseModel):
     flags: dict[str, Any] = Field(default_factory=dict)
     rng_counter: int = 0
     summary_refs: list[Id] = Field(default_factory=list)
+    storyteller_state: dict[str, Any] = Field(default_factory=dict)
 
 
 class Event(BaseModel):

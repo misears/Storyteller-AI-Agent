@@ -22,8 +22,26 @@ def apply_event(state: GameState, event: Event) -> GameState:
         tracker = Tracker.model_validate(event.payload["tracker"])
         updated.trackers[tracker.id] = tracker
     elif event.type == "dice.rolled":
-        updated.rng_counter = event.payload.get("counter_end", updated.rng_counter)
+        roll = event.payload.get("roll", {})
+        proof = roll.get("rng", {}) if isinstance(roll, dict) else {}
+        updated.rng_counter = event.payload.get(
+            "counter_end", proof.get("counter_end", updated.rng_counter),
+        )
+    elif event.type == "game_state.updated":
+        updated.storyteller_state = _merge_patch(
+            updated.storyteller_state, event.payload.get("patch", {}),
+        )
     return updated
+
+
+def _merge_patch(current: dict, patch: dict) -> dict:
+    merged = {**current}
+    for key, value in patch.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_patch(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 def replay(campaign_id: str, branch_id: str, events: list[Event]) -> GameState:

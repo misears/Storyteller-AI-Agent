@@ -3,7 +3,8 @@ param(
     [ValidateSet('qwen3:8b', 'qwen3:4b', 'qwen3:1.7b')][string]$Model = 'qwen3:4b',
     [switch]$CheckOnly,
     [string]$ReportPath,
-    [switch]$SkipConfirmation
+    [switch]$SkipConfirmation,
+    [switch]$InstallOCR
 )
 
 . (Join-Path $PSScriptRoot 'Setup.Common.ps1')
@@ -29,6 +30,10 @@ try {
     if (-not $SkipConfirmation) {
         $answer = Read-Host 'Continue with software installation and model download? Type YES to continue'
         if ($answer -ne 'YES') { throw 'Installation cancelled. No application software was installed.' }
+    }
+    if (-not $SkipConfirmation -and -not $InstallOCR) {
+        $ocrAnswer = Read-Host 'Optional: install scanned-PDF OCR using WinGet? Windows may request approval. Type YES to install, or press Enter to skip'
+        $InstallOCR = $ocrAnswer -ceq 'YES'
     }
     foreach ($root in @([IO.Path]::GetPathRoot($InstallRoot), [IO.Path]::GetPathRoot($env:USERPROFILE)) | Select-Object -Unique) {
         $drive = Get-PSDrive -Name $root.TrimEnd('\').TrimEnd(':')
@@ -60,7 +65,7 @@ try {
     $application = Join-Path $InstallRoot 'app'
     $null = New-Item $application -ItemType Directory -Force
     Copy-Item (Join-Path $payload 'app\*') $application -Recurse -Force
-    foreach ($script in @('Launch.ps1', 'Install.ps1', 'Setup.Common.ps1')) {
+    foreach ($script in @('Launch.ps1', 'Install.ps1', 'Install-OCR.ps1', 'Setup.Common.ps1')) {
         if ([IO.Path]::GetFullPath($PSScriptRoot) -ne [IO.Path]::GetFullPath($InstallRoot)) {
             Copy-Item (Join-Path $PSScriptRoot $script) $InstallRoot -Force
         }
@@ -114,6 +119,21 @@ try {
         $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $InstallRoot $script)`"" + $(if ($script -eq 'Install.ps1') { " -InstallRoot `"$InstallRoot`" -Model $Model" } else { '' })
         $shortcut.WorkingDirectory = $InstallRoot
         $shortcut.Save()
+    }
+    $ocrShortcut = $shell.CreateShortcut((Join-Path $startMenu 'Repair OCR for Storyteller AI.lnk'))
+    $ocrShortcut.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $ocrShortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $InstallRoot 'Install-OCR.ps1')`" -Interactive"
+    $ocrShortcut.WorkingDirectory = $InstallRoot
+    $ocrShortcut.Save()
+    if ($InstallOCR) {
+        Write-Host '[Optional] Setting up scanned-PDF OCR...'
+        try {
+            Invoke-CheckedProcess (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $InstallRoot 'Install-OCR.ps1'), '-Consent')
+        }
+        catch {
+            Write-Host "OCR setup was not completed: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host 'Storyteller AI is installed and text-based PDFs still work. Select Repair OCR for Storyteller AI from the Start menu to retry.' -ForegroundColor Yellow
+        }
     }
     Write-Host 'Installation complete. Open Storyteller AI from your desktop.' -ForegroundColor Green
 }
