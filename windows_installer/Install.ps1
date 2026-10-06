@@ -50,9 +50,7 @@ try {
     }
     if (-not (Test-Path $python)) {
         Write-Host '[1/6] Installing a private Python runtime...'
-        $installer = Join-Path $payload 'python-installer.exe'
-        $process = Start-Process $installer -ArgumentList @('/quiet', 'InstallAllUsers=0', "TargetDir=`"$runtime`"", 'Include_launcher=0', 'InstallLauncherAllUsers=0', 'PrependPath=0', 'Include_test=0', 'Include_doc=0', 'Include_pip=1', 'Include_tcltk=0', 'AssociateFiles=0', 'Shortcuts=0') -Wait -PassThru
-        if ($process.ExitCode -notin @(0, 3010)) { throw "Python installation failed (exit $($process.ExitCode))." }
+        $python = Install-PrivatePython (Join-Path $payload 'python-runtime.zip') $runtime
     }
     if (-not (Test-Path $python)) { throw 'Python installation did not create the expected runtime. Run setup again.' }
     Write-Host '[2/6] Creating and checking the private virtual environment...'
@@ -86,8 +84,9 @@ try {
         if ((Get-AuthenticodeSignature $download).Status -ne 'Valid') {
             throw 'The Ollama installer signature could not be verified. Setup stopped for your safety.'
         }
-        $process = Start-Process $download -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
-        if ($process.ExitCode -notin @(0, 3010)) { throw "Ollama installation failed (exit $($process.ExitCode))." }
+        Write-Host 'Download verified. Installing Ollama; its desktop app may open automatically...'
+        $installerExitCode = Invoke-InstallerProcess $download @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
+        if ($installerExitCode -notin @(0, 3010)) { throw "Ollama installation failed (exit $installerExitCode)." }
         $ollama = Find-Ollama
         if (-not $ollama) { throw 'Ollama was not found after installation. Restart Windows and run Repair Storyteller AI.' }
         Remove-Item $download -Force

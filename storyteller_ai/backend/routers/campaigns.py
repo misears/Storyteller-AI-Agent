@@ -22,6 +22,7 @@ from ..services.save_service import save_service
 from ..services.bible_service import bible_service
 from ..services.session_zero_service import session_zero_service
 from ..services.multiplayer_service import multiplayer_service
+from ..services.security import is_loopback_host
 from fastapi.responses import Response, StreamingResponse
 import json
 from ..persistence.db import create_campaign_engine
@@ -46,6 +47,13 @@ class PostChatRequest(BaseModel):
     session_id: str | None = None
     scene_id: str | None = None
     visibility: Visibility = Field(default_factory=Visibility)
+
+
+class CampaignSourcesRequest(BaseModel):
+    document_ids: list[str] = Field(default_factory=list)
+    ruleset_id: str
+    chronicle_document_id: str | None = None
+    chronicle_page: int = Field(default=1, ge=1)
 
 
 class ChatPage(BaseModel):
@@ -147,6 +155,17 @@ def get_campaign_state(campaign_id: str):
     return campaign_service.state(campaign)
 
 
+@router.put("/{campaign_id}/sources", response_model=Campaign)
+def configure_campaign_sources(campaign_id: str, payload: CampaignSourcesRequest, request: Request):
+    if request.client is None or not is_loopback_host(request.client.host):
+        raise HTTPException(status_code=403, detail="Chronicle sources must be configured by the host Storyteller.")
+    campaign = get_campaign(campaign_id)
+    try:
+        return campaign_service.configure_sources(campaign, **payload.model_dump())
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post("/{campaign_id}/chat", response_model=ChatMessage)
 def post_chat_message(campaign_id: str, payload: PostChatRequest):
     campaign = get_campaign(campaign_id)
@@ -211,7 +230,7 @@ def verify_campaign_dice(
 @router.post("/{campaign_id}/rules/lookup", response_model=RuleLookupResponse)
 def lookup_campaign_rules(campaign_id: str, payload: RuleLookupRequest):
     campaign = get_campaign(campaign_id)
-    return {"results": document_store.retrieve_scoped(payload.query, campaign.source_document_ids)}
+    return {"results": document_store.retrieve_scoped(payload.query, document_store.rules_document_ids(campaign.source_document_ids))}
 
 
 @router.post("/{campaign_id}/turns")

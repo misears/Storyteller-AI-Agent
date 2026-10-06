@@ -341,6 +341,7 @@ class OllamaProvider(BaseProvider):
 
     async def generate_with_tools(
         self, messages: list[dict[str, Any]], tools: list[ToolSpec],
+        response_schema: dict[str, Any] | None = None,
     ) -> ProviderResponse:
         url = f"{_get_ollama_url().rstrip('/')}/api/chat"
         settings = _get_llm_settings()
@@ -360,7 +361,9 @@ class OllamaProvider(BaseProvider):
                 "num_predict": int(settings["ollama_max_output_tokens"]),
             },
         }
-        if tools:
+        if response_schema is not None:
+            payload["format"] = response_schema
+        elif tools:
             payload["tools"] = [
                 {
                     "type": "function",
@@ -527,6 +530,7 @@ class LLMClient:
 
     async def generate_with_tools(
         self, messages: list[dict[str, Any]], tools: list[ToolSpec],
+        response_schema: dict[str, Any] | None = None,
     ) -> ProviderResponse:
         if not isinstance(self.provider, OllamaProvider):
             return await self.provider.generate_with_tools(messages, tools)
@@ -542,6 +546,7 @@ class LLMClient:
                     tools,
                     retries=retries,
                     retry_exceptions=(httpx.ConnectError, httpx.ConnectTimeout),
+                    **({"response_schema": response_schema} if response_schema is not None else {}),
                 )
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             raise OllamaConnectionError(

@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -179,10 +180,12 @@ class CharacterSheetStore:
 
     def _write_payload(self) -> None:
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
-        self.store_path.write_text(
-            json.dumps(self._payload, indent=2, ensure_ascii=True),
-            encoding="utf-8",
-        )
+        temporary = self.store_path.with_name(self.store_path.name + "." + str(uuid4()) + ".tmp")
+        try:
+            temporary.write_text(json.dumps(self._payload, indent=2, ensure_ascii=True), encoding="utf-8")
+            temporary.replace(self.store_path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def list_templates(self, genre: Optional[str] = None, audience: Optional[str] = None) -> List[Dict[str, Any]]:
         templates = self._payload.get("templates", [])
@@ -235,6 +238,10 @@ class CharacterSheetStore:
             "updated_at": now,
             "version": 1,
             "history": [],
+            "campaign_id": None,
+            "experience": {"earned": 0, "spent": 0, "available": 0},
+            "advancement_requests": [],
+            "advancement_ledger": [],
         }
         self._validate_fields(template, merged_fields)
 
@@ -259,6 +266,8 @@ class CharacterSheetStore:
     ) -> Dict[str, Any]:
         with self._lock:
             sheet = self.get_sheet(sheet_id)
+            if sheet.get("campaign_id"):
+                raise SheetValidationError("Linked sheets require AI review and human Storyteller approval. Submit an advancement request.")
             current_version = sheet.get("version", 1)
             if expected_version is not None and expected_version != current_version:
                 raise SheetConflictError(current_version)
@@ -286,9 +295,122 @@ class CharacterSheetStore:
     def list_history(self, sheet_id: str) -> List[Dict[str, Any]]:
         return list(self.get_sheet(sheet_id).get("history", []))
 
+    def link_campaign(self, sheet_id: str, campaign_id: str, expected_version: int) -> Dict[str, Any]:
+        with self._lock:
+            sheet = self.get_sheet(sheet_id)
+            if sheet.get("version", 1) != expected_version:
+                raise SheetConflictError(sheet.get("version", 1))
+            if not campaign_id:
+                raise SheetValidationError("A chronicle is required.")
+            if sheet.get("campaign_id"):
+                if sheet["campaign_id"] != campaign_id:
+                    raise SheetValidationError("This sheet is already linked to another chronicle.")
+                return sheet
+            sheet.setdefault("experience", {"earned": 0, "spent": 0, "available": 0})
+            sheet.setdefault("advancement_requests", [])
+            sheet.setdefault("advancement_ledger", [])
+            sheet["campaign_id"] = campaign_id
+            sheet["version"] = expected_version + 1
+            sheet["updated_at"] = _utc_now_iso()
+            self._write_payload()
+            return sheet
+
+    def propose_advancement(
+        self, sheet_id: str, kind: str, xp: int, fields: Dict[str, Any],
+        reason: str, expected_version: int, name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            sheet = self.get_sheet(sheet_id)
+            if not sheet.get("campaign_id"):
+                raise SheetValidationError("Link the sheet to a chronicle first.")
+            if sheet.get("version", 1) != expected_version:
+                raise SheetConflictError(sheet.get("version", 1))
+            if isinstance(xp, bool) or not isinstance(xp, int) or xp < 0:
+                raise SheetValidationError("XP must be a non-negative integer.")
+            if kind not in {"award", "spend", "change"} or not reason.strip():
+                raise SheetValidationError("A valid request type and reason are required.")
+            if kind == "award" and (xp == 0 or fields or name is not None):
+                raise SheetValidationError("An XP award must be positive and cannot also change the sheet.")
+            if kind == "spend" and (xp == 0 or not fields):
+                raise SheetValidationError("An advancement needs positive XP cost and field changes.")
+            if kind == "change" and (xp != 0 or (not fields and name is None)):
+                raise SheetValidationError("A correction needs changes and cannot spend XP.")
+            allowed = {definition["name"] for definition in sheet.get("field_schema", [])}
+            if set(fields) - allowed:
+                raise SheetValidationError("Unknown sheet fields.")
+            self._validate_fields(self.get_template(sheet["template_key"]), {**sheet["fields"], **fields})
+            request = {
+                "id": str(uuid4()), "kind": kind, "xp": xp, "fields": deepcopy(fields),
+                "name": name, "reason": reason.strip(), "base_version": expected_version,
+                "status": "pending", "ai_review": None, "created_at": _utc_now_iso(),
+            }
+            sheet.setdefault("advancement_requests", []).append(request)
+            self._write_payload()
+            return deepcopy(request)
+
+    def get_advancement(self, sheet_id: str, request_id: str) -> Dict[str, Any]:
+        request = next((item for item in self.get_sheet(sheet_id).get("advancement_requests", []) if item["id"] == request_id), None)
+        if request is None:
+            raise KeyError("Advancement request not found")
+        return request
+
+    def record_ai_review(self, sheet_id: str, request_id: str, review: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            sheet = self.get_sheet(sheet_id)
+            request = self.get_advancement(sheet_id, request_id)
+            if request["status"] in {"approved", "rejected"}:
+                raise SheetValidationError("This request has already been decided.")
+            if request["base_version"] != sheet.get("version", 1):
+                raise SheetConflictError(sheet.get("version", 1))
+            if review.get("recommendation") not in {"approve", "reject", "needs_information"} or not review.get("reason"):
+                raise SheetValidationError("The AI review is incomplete.")
+            request.update({"ai_review": deepcopy(review), "status": "reviewed", "reviewed_at": _utc_now_iso()})
+            self._write_payload()
+            return deepcopy(request)
+
+    def decide_advancement(
+        self, sheet_id: str, request_id: str, approve: bool, reviewer: str, reason: str,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            sheet = self.get_sheet(sheet_id)
+            request = self.get_advancement(sheet_id, request_id)
+            if request["status"] in {"approved", "rejected"}:
+                raise SheetValidationError("This request has already been decided.")
+            if not reviewer.strip() or not reason.strip():
+                raise SheetValidationError("Human Storyteller name and decision reason are required.")
+            if approve:
+                if request["base_version"] != sheet.get("version", 1):
+                    raise SheetConflictError(sheet.get("version", 1))
+                if not request.get("ai_review") or request["ai_review"]["recommendation"] != "approve":
+                    raise SheetValidationError("A positive AI review is required before human approval.")
+                if request["kind"] == "spend" and request["xp"] > sheet["experience"]["available"]:
+                    raise SheetValidationError("Not enough available experience points.")
+                fields = {**sheet["fields"], **request["fields"]}
+                self._validate_fields(self.get_template(sheet["template_key"]), fields)
+                sheet.setdefault("history", []).append({
+                    "version": sheet["version"], "name": sheet["name"], "fields": deepcopy(sheet["fields"]),
+                    "experience": deepcopy(sheet["experience"]), "updated_at": sheet["updated_at"], "reason": reason.strip(),
+                })
+                sheet["fields"] = fields
+                if request.get("name") is not None:
+                    sheet["name"] = request["name"]
+                if request["kind"] == "award":
+                    sheet["experience"]["earned"] += request["xp"]
+                elif request["kind"] == "spend":
+                    sheet["experience"]["spent"] += request["xp"]
+                sheet["experience"]["available"] = sheet["experience"]["earned"] - sheet["experience"]["spent"]
+                sheet["version"] += 1
+                sheet["updated_at"] = _utc_now_iso()
+            request.update({"status": "approved" if approve else "rejected", "decided_by": reviewer.strip(), "decision_reason": reason.strip(), "decided_at": _utc_now_iso()})
+            sheet.setdefault("advancement_ledger", []).append(deepcopy(request))
+            self._write_payload()
+            return sheet
+
     def revert_sheet(self, sheet_id: str, version: int, expected_version: Optional[int] = None) -> Dict[str, Any]:
         with self._lock:
             sheet = self.get_sheet(sheet_id)
+            if sheet.get("campaign_id"):
+                raise SheetValidationError("Linked sheets cannot bypass advancement approval by reverting history.")
             current_version = sheet.get("version", 1)
             if expected_version is not None and expected_version != current_version:
                 raise SheetConflictError(current_version)

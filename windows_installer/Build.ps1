@@ -9,6 +9,12 @@ param(
 & (Join-Path $PSScriptRoot 'Test-Installer.ps1')
 if ($PythonVersion -notmatch '^3\.12\.\d+$') { throw 'This installer currently targets CPython 3.12 x64 wheels.' }
 
+$web = Join-Path $ProjectRoot 'web'
+$npm = (Get-Command npm.cmd -ErrorAction Stop).Source
+Write-Host 'Building the current web interface from locked dependencies...'
+Invoke-CheckedProcess $npm @('--prefix', $web, 'ci')
+Invoke-CheckedProcess $npm @('--prefix', $web, 'run', 'build')
+
 $output = Join-Path $PSScriptRoot 'output'
 $bundle = Join-Path $output 'StorytellerAI-Install'
 $payload = Join-Path $bundle 'payload'
@@ -37,11 +43,19 @@ if (-not (Test-Path $python)) { $python = (Get-Command python.exe -ErrorAction S
 Write-Host 'Resolving the exact application dependencies for Python 3.12 on Windows x64...'
 Invoke-CheckedProcess $python @('-m', 'pip', 'download', '--only-binary=:all:', '--platform', 'win_amd64', '--python-version', '312', '--implementation', 'cp', '--abi', 'cp312', '--dest', $wheels, '-r', (Join-Path $payload 'requirements.txt'))
 
-Write-Host 'Downloading and verifying the official Python installer...'
+Write-Host 'Downloading and verifying the official Python runtime archive...'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$pythonInstaller = Join-Path $payload 'python-installer.exe'
-Invoke-WebRequest "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-amd64.exe" -OutFile $pythonInstaller -UseBasicParsing
-if ((Get-AuthenticodeSignature $pythonInstaller).Status -ne 'Valid') { throw 'The Python installer signature is not valid.' }
+$pythonArchive = Join-Path $payload 'python-runtime.zip'
+Invoke-WebRequest "https://www.nuget.org/api/v2/package/python/$PythonVersion" -OutFile $pythonArchive -UseBasicParsing
+$runtimeCheck = Join-Path $output 'python-runtime-check'
+if (Test-Path $runtimeCheck) { Remove-Item $runtimeCheck -Recurse -Force }
+try {
+    Expand-Archive $pythonArchive $runtimeCheck
+    $runtimePython = Join-Path $runtimeCheck 'tools\python.exe'
+    if ((Get-AuthenticodeSignature $runtimePython).Status -ne 'Valid') { throw 'The Python runtime signature is not valid.' }
+    Invoke-CheckedProcess $runtimePython @('-I', '-c', 'import sys, venv, ensurepip; assert sys.version_info[:2] == (3, 12) and sys.maxsize > 2**32')
+}
+finally { if (Test-Path $runtimeCheck) { Remove-Item $runtimeCheck -Recurse -Force } }
 $manifest = @(Get-ChildItem $payload -File -Recurse | ForEach-Object {
     @{ path = $_.FullName.Substring($payload.Length + 1); sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
 })

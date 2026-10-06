@@ -1,6 +1,6 @@
 import io
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ from ..services.pdf_ingest import OCRUnavailableError, extract_pages_from_pdf, g
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 logger = logging.getLogger(__name__)
+DocumentRole = Literal["core_rules", "supplement", "flavor", "chronicle", "reference"]
 
 
 class DocumentResponse(BaseModel):
@@ -17,6 +18,8 @@ class DocumentResponse(BaseModel):
     title: str
     size: int
     genres: List[str] = Field(default_factory=list)
+    role: DocumentRole = "reference"
+    page_count: int = 1
 
 
 class DocumentListResponse(BaseModel):
@@ -28,6 +31,7 @@ class DocumentUploadResult(BaseModel):
     title: str
     size: int
     genres: List[str] = Field(default_factory=list)
+    role: DocumentRole = "reference"
 
 
 class DocumentUploadResponse(BaseModel):
@@ -86,6 +90,7 @@ def _parse_genres_csv(raw_value: str) -> List[str]:
 async def upload_document(
     files: List[UploadFile] = File(...),
     genres: str = Form(default=""),
+    role: DocumentRole = Form(default="reference"),
 ) -> Dict[str, Any]:
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
@@ -118,6 +123,7 @@ async def upload_document(
             pdf_bytes=contents,
             genres=parsed_genres,
             page_chunks=page_chunks,
+            role=role,
         )
         documents.append(
             {
@@ -125,6 +131,7 @@ async def upload_document(
                 "title": file.filename,
                 "size": len(text),
                 "genres": parsed_genres,
+                "role": role,
             }
         )
 
@@ -134,6 +141,27 @@ async def upload_document(
 @router.get("/list", response_model=DocumentListResponse)
 def list_documents() -> DocumentListResponse:
     return {"documents": document_store.list_documents()}
+
+
+class DocumentRoleRequest(BaseModel):
+    role: DocumentRole
+
+
+@router.put("/{document_id}/role")
+def update_document_role(document_id: str, payload: DocumentRoleRequest):
+    if not document_store.update_document_role(document_id, payload.role):
+        raise HTTPException(status_code=404, detail="PDF not found")
+    return {"document_id": document_id, "role": payload.role}
+
+
+@router.get("/{document_id}/pages")
+def document_pages(document_id: str, start_page: int = 1, count: int = 3):
+    try:
+        return {"pages": document_store.get_pages(document_id, start_page, count)}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/retrieve", response_model=RetrieveResponse)

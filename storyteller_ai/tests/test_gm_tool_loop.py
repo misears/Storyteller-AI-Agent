@@ -45,6 +45,45 @@ class ScriptedLLM:
         return self.responses.pop(0)
 
 
+def test_selected_pdf_roles_and_chronicle_page_reach_storyteller(tmp_path, monkeypatch):
+    from backend.services.document_store import DocumentStore
+    from backend.services.character_sheet_store import CharacterSheetStore
+    from backend.services import campaign_service as campaign_module
+    from backend.engines import gm_loop as loop_module
+
+    monkeypatch.setenv("STORYTELLER_DATA_DIR", str(tmp_path / "data"))
+    documents = DocumentStore()
+    book = documents.add_document("chronicle.pdf", "Published chronicle", "opening", b"pdf", role="chronicle", page_chunks=["Previous chapter", "The harbor scene. Secret villain notes."])
+    flavor = documents.add_document("lore.pdf", "Harbor lore", "harbor history and atmosphere", b"pdf", role="flavor")
+    monkeypatch.setattr(campaign_module, "document_store", documents)
+    monkeypatch.setattr(loop_module, "document_store", documents)
+    campaign = campaign_service.create("Book chronicle")
+    campaign = campaign_service.configure_sources(campaign, [flavor], "freeform", book, 2)
+    sheets = CharacterSheetStore(tmp_path / "sheets.json")
+    sheet = sheets.create_sheet("fantasy-hero-player", "Aria", None)
+    sheet = sheets.link_campaign(sheet["sheet_id"], campaign.id, 1)
+    correction = sheets.propose_advancement(sheet["sheet_id"], "change", 0, {"vitality": 11}, "Correct sheet", sheet["version"])
+    sheets.record_ai_review(sheet["sheet_id"], correction["id"], {"recommendation": "approve", "reason": "Correction confirmed", "citations": []})
+    sheet = sheets.decide_advancement(sheet["sheet_id"], correction["id"], True, "GM", "Confirmed")
+    sheets.propose_advancement(sheet["sheet_id"], "change", 0, {"vitality": 99}, "Pending proposal", sheet["version"])
+    monkeypatch.setattr(loop_module, "character_sheet_store", sheets)
+    restored = campaign_service.get(campaign.id)
+    assert restored.chronicle_document_id == book
+    assert restored.chronicle_page == 2
+    llm = ScriptedLLM([ProviderResponse(text="You approach the harbor.")])
+    asyncio.run(GMLoop(llm_client=llm).step("Explore the harbor", restored))
+    prompt = llm.requests[0][0][0]["content"]
+    assert "The harbor scene" in prompt
+    assert "Previous chapter" not in prompt
+    assert '"role": "flavor"' in prompt
+    assert "GM-only pages may contain secrets" in prompt
+    assert '"vitality": 11' in prompt
+    assert '"vitality": 99' not in prompt
+    with pytest.raises(ValueError, match="chronicle role"):
+        campaign_service.configure_sources(restored, [flavor], "freeform", flavor, 1)
+    assert campaign_service.get(campaign.id).chronicle_document_id == book
+
+
 def test_tool_loop_returns_validated_results_to_model_and_stages_state():
     patch = {"scene": {"tension": "high"}}
     llm = ScriptedLLM([

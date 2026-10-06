@@ -33,9 +33,13 @@ Name: "ocrsupport"; Description: "Scanned-PDF OCR (Tesseract with English data; 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Launch.ps1"""; Description: "Open Storyteller AI"; Flags: postinstall nowait skipifsilent
 
+[Icons]
+Name: "{group}\Uninstall Storyteller AI"; Filename: "{uninstallexe}"
+
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\app"
 Type: filesandordirs; Name: "{app}\.venv"
+Type: filesandordirs; Name: "{app}\runtime"
 Type: files; Name: "{userdesktop}\Storyteller AI.lnk"
 Type: files; Name: "{userprograms}\Storyteller AI\Storyteller AI.lnk"
 Type: files; Name: "{userprograms}\Storyteller AI\Repair Storyteller AI.lnk"

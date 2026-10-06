@@ -1,6 +1,8 @@
 import asyncio
 import io
+import json
 import zipfile
+from types import SimpleNamespace
 
 from httpx2 import ASGITransport, AsyncClient
 import pytest
@@ -15,6 +17,85 @@ from backend.services.runtime_settings import runtime_settings
 
 def _run_async(coroutine):
     return asyncio.new_event_loop().run_until_complete(coroutine)
+
+
+@pytest.mark.parametrize("wrapped", ["plain", "fenced", "thinking", "tool"])
+def test_advancement_api_requires_real_review_local_human_and_confirmation(monkeypatch, tmp_path, wrapped):
+    from backend.routers import character_sheets
+    from backend.services.character_sheet_store import CharacterSheetStore
+    from backend.services.campaign_service import campaign_service
+
+    store = CharacterSheetStore(tmp_path / "sheets.json")
+    monkeypatch.setattr(character_sheets, "character_sheet_store", store)
+    campaign = campaign_service.create(title="XP checks")
+    sheet = store.create_sheet("fantasy-hero-player", "Aria", None)
+    sheet = store.link_campaign(sheet["sheet_id"], campaign.id, 1)
+    request = store.propose_advancement(sheet["sheet_id"], "award", 5, {}, "Session completed", sheet["version"])
+
+    async def review(self, messages, tools, response_schema=None):
+        assert tools[0].name == "review_advancement"
+        assert "recommendation" in response_schema["properties"]
+        assert response_schema["properties"]["citations"]["maxItems"] == 0
+        assert messages[-1]["content"].endswith("/no_think")
+        evidence = json.loads(messages[-1]["content"].rsplit("\n/no_think", 1)[0])
+        assert evidence["request"]["xp"] == 5
+        text = json.dumps({"recommendation": "approve", "reason": "Human ruling confirms five XP", "citations": []})
+        if wrapped == "fenced":
+            text = f"```json\n{text}\n```"
+        elif wrapped == "thinking":
+            text = 'Private reasoning includes {"not": "a review"}</think>\n' + text
+        elif wrapped == "tool":
+            from backend.models.tools import ToolCall
+            return SimpleNamespace(text="", tool_calls=[ToolCall(id="review-1", name="review_advancement", arguments=json.loads(text))])
+        return SimpleNamespace(text=text)
+
+    monkeypatch.setattr(character_sheets.LLMClient, "generate_with_tools", review)
+    path = f"/character-sheets/{sheet['sheet_id']}/advancement/{request['id']}"
+    decision = {"approve": True, "reviewer": "GM", "reason": "Session award", "human_confirmation": True}
+
+    async def exercise():
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            assert (await client.post(path + "/decision", json=decision)).status_code == 422
+            reviewed = await client.post(path + "/review", json={"storyteller_guidance": "Our house ruling awards five XP for this session."})
+            assert reviewed.status_code == 200
+            assert reviewed.json()["request"]["ai_review"]["recommendation"] == "approve"
+            missing_confirmation = {key: value for key, value in decision.items() if key != "human_confirmation"}
+            assert (await client.post(path + "/decision", json=missing_confirmation)).status_code == 422
+            assert (await client.put(f"/character-sheets/{sheet['sheet_id']}", json={"fields": {"vitality": 99}})).status_code == 422
+        async with AsyncClient(transport=ASGITransport(app, client=("198.51.100.8", 5000)), base_url="http://testserver") as remote:
+            assert (await remote.post(path + "/decision", json=decision)).status_code == 403
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://testserver") as client:
+            result = await client.post(path + "/decision", json=decision)
+            assert result.status_code == 200
+            assert result.json()["sheet"]["experience"]["available"] == 5
+            assert (await client.post(path + "/decision", json=decision)).status_code == 422
+    _run_async(exercise())
+
+
+@pytest.mark.parametrize("output,expected_status", [
+    ('{"recommendation":"approve","reason":"Guessed cost","citations":[]}', 200),
+    ('{"recommendation":"approve","reason":"Invented source","citations":[{"document_id":"missing.pdf","page":1}]}', 422),
+    ('Not valid JSON', 422),
+])
+def test_ai_review_without_evidence_never_applies_changes(monkeypatch, tmp_path, output, expected_status):
+    from backend.routers import character_sheets
+    from backend.services.character_sheet_store import CharacterSheetStore
+    from backend.services.campaign_service import campaign_service
+    store = CharacterSheetStore(tmp_path / "sheets.json")
+    monkeypatch.setattr(character_sheets, "character_sheet_store", store)
+    campaign = campaign_service.create(title="Unclear XP")
+    sheet = store.create_sheet("fantasy-hero-player", "Aria", None)
+    sheet = store.link_campaign(sheet["sheet_id"], campaign.id, 1)
+    proposed = store.propose_advancement(sheet["sheet_id"], "award", 5, {}, "Unknown award", sheet["version"])
+    async def review(self, messages, tools, response_schema=None):
+        return SimpleNamespace(text=output)
+    monkeypatch.setattr(character_sheets.LLMClient, "generate_with_tools", review)
+    response = _run_async(_submit_request("post", f"/character-sheets/{sheet['sheet_id']}/advancement/{proposed['id']}/review", json={}))
+    assert response.status_code == expected_status
+    if expected_status == 200:
+        assert response.json()["request"]["ai_review"]["recommendation"] == "needs_information"
+    assert sheet["experience"]["available"] == 0
+    assert sheet["version"] == 2
 
 
 async def _submit_request(method, path, json=None):

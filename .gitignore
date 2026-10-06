@@ -19,6 +19,7 @@ dist/
 **/node_modules/
 **/*.tsbuildinfo
 *.egg-info/
+/windows_installer/output/
 
 # Tooling/test caches
 .pytest_cache/

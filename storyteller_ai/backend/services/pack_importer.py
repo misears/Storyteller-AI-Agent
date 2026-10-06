@@ -42,10 +42,17 @@ class PackImporter:
             raise ValueError("at least one source document is required")
         if mode not in {"new", "extend"}:
             raise ValueError("mode must be 'new' or 'extend'")
-        available = {item["document_id"] for item in self.documents.list_documents()}
+        documents = {item["document_id"]: item for item in self.documents.list_documents()}
+        available = set(documents)
         missing = sorted(set(document_ids) - available)
         if missing:
             raise ValueError(f"unknown source documents: {', '.join(missing)}")
+        if any(documents[document_id].get("role", "core_rules") not in {"core_rules", "supplement"} for document_id in document_ids):
+            raise ValueError("Only core-rules and supplement PDFs can be imported as rulesets. Flavor and chronicles remain reference/scenario material.")
+        if mode == "new" and not any(documents[document_id].get("role", "core_rules") == "core_rules" for document_id in document_ids):
+            raise ValueError("A new base ruleset needs a core-rules PDF. Use extend for supplements.")
+        if mode == "extend" and (not target_pack_id or pack_registry.rulesets.get(target_pack_id) is None):
+            raise ValueError("Choose an installed base ruleset to extend.")
         job_id = str(uuid4())
         classification = {
             document_id: self._classify(document_id) for document_id in document_ids
@@ -110,13 +117,14 @@ class PackImporter:
     def _base_draft(self, job_id: str, mode: str, target: str | None, document_ids: list[str]) -> dict[str, Any]:
         pack_id = target or f"imported-{job_id[:8]}"
         version = "1.0.0"
+        existing = None
         if mode == "extend" and target:
             existing = pack_registry.rulesets.get(target)
             if existing is not None:
                 pack_id = existing.id
                 major, minor, patch = (int(value) for value in existing.version.split("."))
                 version = f"{major}.{minor}.{patch + 1}"
-        return {
+        draft = {
             "manifest": {
                 "id": pack_id, "version": version, "name": "Imported Ruleset",
                 "license": "Local import", "attribution": "Generated from selected local documents",
@@ -126,19 +134,21 @@ class PackImporter:
                 "prompt_digest": "Use the selected local documents for detailed rules lookup.",
                 "family": "imported", "origin": "pdf_import",
                 "source_documents": [
-                    {"document_id": document_id, "sha256": _document_digest(document_id), "role": "core_rules"}
+                    {"document_id": document_id, "sha256": _document_digest(document_id), "role": "supplement_rules" if self._classify(document_id) == "supplement" else "core_rules"}
                     for document_id in document_ids
                 ],
             },
             "sheet_schema": {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"},
         }
+        if existing is not None:
+            manifest = existing.model_dump(mode="json", exclude={"sheet_schema"})
+            manifest.update({"version": version, "origin": "pdf_import", "source_documents": manifest.get("source_documents", []) + draft["manifest"]["source_documents"]})
+            draft = {"manifest": manifest, "sheet_schema": existing.sheet_schema}
+        return draft
 
     def _classify(self, document_id: str) -> str:
-        title = next((item["title"] for item in self.documents.list_documents()
-                      if item["document_id"] == document_id), document_id).lower()
-        if any(word in title for word in ("setting", "city", "guide")):
-            return "setting"
-        return "core_rules"
+        return next((item.get("role", "core_rules") for item in self.documents.list_documents()
+                     if item["document_id"] == document_id), "reference")
 
     def _save(self, job: ImportJob) -> None:
         (self.job_dir / f"{job.id}.json").write_text(job.model_dump_json(indent=2), encoding="utf-8")

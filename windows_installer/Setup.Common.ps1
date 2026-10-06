@@ -9,6 +9,14 @@ function Invoke-CheckedProcess {
     }
 }
 
+function Invoke-InstallerProcess {
+    param([string]$FilePath, [string[]]$Arguments)
+    $process = Start-Process $FilePath -ArgumentList $Arguments -PassThru
+    $null = $process.Handle
+    $process.WaitForExit()
+    return $process.ExitCode
+}
+
 function Get-RecommendedModel {
     param([double]$MemoryGB, [double]$VideoMemoryGB)
     if ($MemoryGB -ge 16 -and $VideoMemoryGB -ge 8) { return 'qwen3:8b' }
@@ -108,6 +116,27 @@ function Install-Tesseract {
         throw "$($status.Detail) Use https://github.com/UB-Mannheim/tesseract/wiki to install English (eng) data, then select Repair OCR for Storyteller AI."
     }
     Write-Host "Scanned-PDF OCR is ready. $($status.Detail)" -ForegroundColor Green
+}
+
+function Install-PrivatePython {
+    param([string]$ArchivePath, [string]$RuntimeRoot)
+    $staging = $RuntimeRoot + '-unpack-' + [Guid]::NewGuid().ToString('N')
+    try {
+        Expand-Archive -Path $ArchivePath -DestinationPath $staging
+        $tools = Join-Path $staging 'tools'
+        $candidate = Join-Path $tools 'python.exe'
+        if ((Get-AuthenticodeSignature $candidate).Status -ne 'Valid') {
+            throw 'The bundled Python runtime signature is not valid.'
+        }
+        $null = New-Item $RuntimeRoot -ItemType Directory -Force
+        Copy-Item (Join-Path $tools '*') $RuntimeRoot -Recurse -Force
+        $python = Join-Path $RuntimeRoot 'python.exe'
+        Invoke-CheckedProcess $python @('-I', '-c', 'import sys, venv, ensurepip; assert sys.version_info[:2] == (3, 12) and sys.maxsize > 2**32')
+        return $python
+    }
+    finally {
+        if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
+    }
 }
 
 function Find-Python312 {

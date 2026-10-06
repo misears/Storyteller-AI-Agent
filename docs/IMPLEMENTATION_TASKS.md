@@ -117,16 +117,25 @@ and UI design rather than starting from an empty project.
 - [x] **T3.8** — Build resumable PDF classification and rules-extraction jobs. Jobs persist locally,
   classify selected documents, and retain editable drafts without copying source PDFs into packs.
 - [x] **T3.9** — Add the PDF import wizard with editable fields and verification questions. The
-  backend workflow exposes start, resume, answer, validate, and commit stages for a future UI.
+  backend workflow exposes start, resume, answer, validate, and commit stages. The React client
+  now provides source-PDF selection, editable JSON drafts, validation, and explicit installation.
 - [x] **T3.10** — Validate imported packs and save them with provenance. Imported manifests and
   schemas pass the same registry validation and record source document digests.
 - [x] **T3.11** — Support extending a pack from supplement PDFs without changing existing campaign
   versions. Extend jobs create a bumped pack version.
+  **Progress (2026-10-05):** Extensions retain the base pack's mechanics and sheet schema, append
+  supplement provenance, and require an installed target. Flavor/chronicle PDFs cannot be imported
+  as mechanical rules; a supplement alone cannot create a new base ruleset. Focused import tests
+  and the browser extension/validation flow pass.
 - [x] **T3.12** — Prove import with a playable D&D SRD 5.2-shaped pack. The repository uses a
   synthetic self-authored fixture and does not bundle copyrighted SRD text.
 - [x] **T3.13** — Add the Demon: The Fallen ruleset structure, ready to enrich from the owner's PDF.
 - [x] **T3.14** — Support cross-genre campaigns with characters using different rulesets. Ruleset
   family validation selects direct comparison or an outcome-ladder bridge.
+- [x] **T3.15 (owner addition, 2026-10-05)** — Persist explicit PDF roles: core rules, rules
+  supplement, setting/flavor, runnable chronicle, and unclassified reference. Upload and library
+  controls can set/change roles. Legacy document rows migrate without losing content and default
+  to reference. Mechanical lookup and XP review search only selected core-rule/supplement sources.
 
 ### M4 — Character sheets v2
 
@@ -138,6 +147,13 @@ and UI design rather than starting from an empty project.
   validation, derived formulas, and tier-required fields are enforced by the character service.
 - [x] **T4.5** — Replace fixed character creation with ruleset-driven chargen primitives. The
   character service builds sheets from the active ruleset schema and derives values safely.
+- [x] **T4.6 (owner addition, 2026-10-05)** — Add earned/spent/available XP and chronicle-linked
+  advancement requests. Awards, stat advancement, and no-XP corrections remain pending until
+  server-generated AI review and explicit human Storyteller confirmation. Version conflicts,
+  insufficient XP, repeated decisions, and direct-edit/history-revert bypasses are rejected.
+  Requests, reviews, decisions, and XP changes persist atomically in `character_sheets.json`;
+  campaign branch saves do not rewind this ledger. Only saved linked-sheet fields reach GM turns.
+  Human decisions are loopback-host operations, not authenticated multiplayer permissions.
 
 ### M5 — GM loop v2
 
@@ -195,6 +211,11 @@ and UI design rather than starting from an empty project.
   completion emits seeded NPC and opening-scene events.
 - [x] **T9.5** — Add session start/end and recap events. Between-session world advancement remains
   a later simulation extension.
+- [x] **T9.6 (owner addition, 2026-10-05)** — Configure a chronicle's ruleset, reference PDFs,
+  published chronicle book, and current page through Chronicle sources. Selection persists and
+  the GM receives a bounded page window with role-labelled references and GM-only instructions.
+  The host can preview pages and advance the book position. This is page-guided play, not complete
+  automatic extraction of every chapter or proof that model narration never reveals a spoiler.
 
 ### M10 — Frontend
 
@@ -207,10 +228,13 @@ and UI design rather than starting from an empty project.
 - [x] **T10.3** — Add the live play view with chat/turn submission, server dice action, save action,
   ruleset status, and session preparation controls.
 - [x] **T10.4** — Add character-sheet library access in the React client, backed by the existing
-  versioned sheet API. Schema-driven editing remains to be expanded.
+  versioned sheet API. Template-driven creation, numeric/text/note editing, chronicle linking,
+  XP requests, AI review, and human approval/rejection controls are now available.
 - [x] **T10.5** — Add named-save browsing to the React client, backed by campaign save APIs.
 - [x] **T10.6** — Add PDF library and model-profile drawers backed by the existing document/import
-  and settings APIs. Full editable import/profile forms remain to be expanded.
+  and settings APIs. PDF upload, role editing, page preview, base/supplement import forms, and
+  chronicle-source configuration are now available; full editable model-profile forms remain
+  to be expanded. Library and character controls remain accessible at narrow screen widths.
 - [ ] **T10.7** — Remove legacy HTML pages and compatibility routes after the React app replaces them.
 
 ### M11 — Hardening & local release
@@ -226,6 +250,15 @@ and UI design rather than starting from an empty project.
   1.63 ms on the development machine.
 - [x] **T11.3** — Package migrations, ruleset packs, and the built UI in the desktop release.
   PyInstaller was built successfully with frontend assets, `backend/content`, and migrations.
+  **Installer progress (2026-10-05):** Built the single Inno Setup EXE in Git-ignored
+  `windows_installer/output`. The build restores locked web dependencies and compiles the UI
+  before packaging. A signed Python NuGet runtime is extracted privately, avoiding maintenance
+  mode collisions with another application's registered but broken Python. Ollama setup waits
+  only for its installer, not its long-running app/server descendants. The launcher explicitly
+  enables automatic browser opening and prints the reusable `http://127.0.0.1:8000/` URL.
+  Uninstall removes Storyteller-owned app/runtime/environment files and leaves OCR, Ollama,
+  downloaded models, PDFs, campaigns, and logs intact. Deletion-target and installer tests pass;
+  destructive uninstall and a clean-Windows wizard run were not performed in this session.
 - [x] **T11.4** — Review the pack-authoring, player, and operator guides. Added focused guides for
   local operation, player workflows, and safe data-only pack authoring.
 - [ ] **T11.5** — After T11.6–T11.9 pass, complete scripted and real multi-session local play;
@@ -330,6 +363,21 @@ stubs. Replaced the active GM protocol's unfinished JSON examples with tool-only
 the legacy patch path, wired ruleset navigation and save loading, and made the SSE route remain
 live with reconnect cursors and heartbeats. The documented test/lint wrapper now works when run
 from workspace root and restores its caller's directory and `PYTHONPATH`.
+
+**Owner-requested feature verification (2026-10-05):** All 74 focused tests pass across the LLM
+client/protocol, sheet versions/migration, API, pack imports, GM loop, domain models, and saves.
+The production frontend and Windows installer checks pass. Real `qwen3:4b` reviews were tested
+with isolated data: 5 XP stayed unapplied until human confirmation; a reviewed 3-XP advancement
+then updated vitality from 10 to 11 and the available balance from 5 to 2 together. Ollama review
+uses native JSON-schema output, `/no_think`, and evidence-bound citations; malformed, truncated,
+or invented-source reviews cannot apply changes. Real PDF upload/role changes, flavor exclusion,
+supplement extension, book/page persistence, and desktop/mobile layout checks passed. The rebuilt
+EXE remains Git-ignored. Installed payload hashes match the build; the installed server was
+restarted and its XP/PDF-role/chronicle-source endpoints verified at port 8000. Port 8001 was only
+the isolated test instance and is stopped. T11.5-T11.9 remain open for their outstanding acceptance
+checks; these results do not constitute full local-release or network-security sign-off.
+**Commit gate (2026-10-05):** The full Python suite passes (176 tests), repository-pinned
+Ruff 0.12.2 passes for `backend` and `tests`, and `git diff --check` reports no whitespace errors.
 
 **Phase 1 complete gate:** Python tests and ruff, pack validation, migrations, replay, scripted
 tool-loop, PDF import, and multi-window UI checks pass. Record 1,000-turn resume (< 1 s) and

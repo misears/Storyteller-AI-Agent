@@ -55,6 +55,8 @@ class Campaign(BaseModel):
     setting_pack_version: str
     extra_setting_packs: list[PackRef] = Field(default_factory=list)
     source_document_ids: list[str] = Field(default_factory=list)
+    chronicle_document_id: str | None = None
+    chronicle_page: int = Field(default=1, ge=1)
     table_config: TableConfig = Field(default_factory=TableConfig)
     bible: dict[str, Any] | None = None
     llm_profile: str = "default"

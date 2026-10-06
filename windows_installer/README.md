@@ -17,7 +17,8 @@ Organization-managed computers may restrict downloaded programs or scripts;
 contact your administrator instead of disabling your organization's protections.
 
 An existing compatible Python 3.12 x64 installation is reused without changing
-its packages. Otherwise setup installs a private runtime. The application always
+its packages. Otherwise setup extracts a private runtime without running a Python
+MSI installer or changing another application's registered Python. The application always
 uses its own virtual environment, not your global Python packages.
 
 Model choices:
@@ -31,6 +32,18 @@ After setup, open the Storyteller AI desktop shortcut. Your browser opens the
 application. Keep its console window open while playing; close it to stop.
 The local AI service may continue running in the background.
 
+In Character sheets, save the initial sheet and link it to a chronicle. Linked
+characters have earned, spent, and available XP. Submit XP awards or proposed
+advancements, request AI review, then confirm the human Storyteller's approval
+or rejection. No XP or sheet change is applied before approval. Unclear costs
+need source evidence or an explicit human house ruling; the AI cannot approve alone.
+
+In PDF library, assign each book as core rules, rules supplement, setting/flavor,
+runnable chronicle, or unclassified reference. Supplements extend a selected base
+ruleset. For a published chronicle, select the chronicle, open Chronicle sources,
+choose the book and current page, then save. The AI uses a bounded page window;
+advance the page as play progresses and keep GM-only book secrets out of public chat.
+
 If setup fails, its message identifies the problem and the log location.
 Run Repair Storyteller AI from the Start menu to retry. If installation failed
 before shortcuts were created, rerun the original installer.
@@ -38,9 +51,15 @@ Repair requires confirmation and preserves campaign data, but resets the LLM
 configuration to local Ollama and the model selected during installation.
 
 Campaign files and logs live in `%LOCALAPPDATA%\StorytellerAI`, separately from
-the program. Upgrades and uninstall do not remove campaign data, your existing
-Ollama installation, downloaded models, or the private Python runtime.
-Remove those separately only when you no longer need them.
+the program. Close the Storyteller console before uninstalling. Choose
+**Uninstall Storyteller AI** from its Start menu folder, or use Windows Settings >
+Apps > Installed apps > Storyteller AI > Uninstall.
+Uninstall removes Storyteller's application files, private virtual environment,
+private Python runtime, and shortcuts. It leaves Tesseract OCR and its language
+data, Ollama, downloaded AI models, campaign data, uploaded PDFs, and logs in place.
+Reinstall the setup EXE afterward; it reuses existing OCR and Ollama installations.
+To deliberately reset campaigns as well, back up `%LOCALAPPDATA%\StorytellerAI`
+first and remove that data folder yourself. Uninstall never deletes it.
 The ZIP installation does not register a Windows uninstaller; remove its program
 folder and shortcuts manually after closing the application. Keep campaign data
 unless you deliberately want to delete it.
@@ -59,8 +78,10 @@ the distributor's responsibility; verify the source before running it.
 
 ## For the person building the installer
 
-Packaging code and generated artifacts are isolated in this folder. Running the
-build does not modify source, development environment, or campaign data. No
+Packaging code and installer artifacts are isolated in this folder. The build
+restores locked web dependencies and regenerates `storyteller_ai/frontend/dist`
+before packaging, so the installer cannot bundle an outdated web interface.
+It does not modify Python environments or campaign data. No
 existing `.env`, API keys, virtual environments, document uploads, or backend
 data are included in the distributable.
 
@@ -89,14 +110,14 @@ To use a compiler installed elsewhere:
 .\windows_installer\Build.ps1 -CompilerPath 'C:\path\to\ISCC.exe'
 ```
 
-Build needs Python with pip and internet access. It downloads Windows x64
+Build needs Python with pip, Node.js with npm, and internet access. It downloads Windows x64
 CPython 3.12 wheels for the exact application's requirements and the signed
-official Python 3.12.10 installer. Dependency-resolution failures stop the build;
+official Python 3.12.10 runtime from the Python NuGet package. Dependency-resolution failures stop the build;
 they are not ignored or silently replaced with unpinned versions. The Python
-version is configurable within 3.12; use an official release with a Windows
-installer, and review runtime security support before distributing.
+version is configurable within 3.12; use an official release with a Python NuGet
+package, and review runtime security support before distributing.
 
-Build checks the Python installer's Authenticode signature and generates SHA-256
+Build checks the Python executable's Authenticode signature and generates SHA-256
 checksums for the payload. Install verifies that payload before use and checks
 the downloaded Ollama installer's Authenticode signature. These checks detect
 damaged files; they do not replace signing the final installer or establishing
@@ -107,6 +128,7 @@ Validation without installing software:
 
 ```powershell
 .\windows_installer\Test-Installer.ps1
+.\windows_installer\Test-Installer.ps1 -RuntimeArchivePath .\windows_installer\output\StorytellerAI-Install\payload\python-runtime.zip
 .\windows_installer\Install.ps1 -CheckOnly
 ```
 

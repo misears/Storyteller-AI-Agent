@@ -5,6 +5,8 @@ from typing import Dict, List
 
 from .app_paths import get_data_dir
 
+DOCUMENT_ROLES = {"core_rules", "supplement", "flavor", "chronicle", "reference"}
+
 
 def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"\w+", text.lower()))
@@ -66,6 +68,7 @@ class DocumentStore:
                     path TEXT NOT NULL,
                     genre_tags TEXT NOT NULL DEFAULT '[]',
                     page_chunks TEXT NOT NULL DEFAULT '[]',
+                    document_role TEXT NOT NULL DEFAULT 'reference',
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -83,6 +86,8 @@ class DocumentStore:
                 connection.execute(
                     "ALTER TABLE documents ADD COLUMN page_chunks TEXT NOT NULL DEFAULT '[]'"
                 )
+            if "document_role" not in columns:
+                connection.execute("ALTER TABLE documents ADD COLUMN document_role TEXT NOT NULL DEFAULT 'reference'")
             connection.commit()
 
     def _document_exists(self, document_id: str) -> bool:
@@ -145,7 +150,10 @@ class DocumentStore:
         pdf_bytes: bytes,
         genres: List[str] | None = None,
         page_chunks: List[str] | None = None,
+        role: str = "core_rules",
     ) -> str:
+        if role not in DOCUMENT_ROLES:
+            raise ValueError("Unknown PDF role")
         document_id = self._normalize_id(document_id)
         pdf_path = self.document_dir / document_id
         pdf_path.write_bytes(pdf_bytes)
@@ -154,8 +162,8 @@ class DocumentStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO documents (document_id, title, text, path, genre_tags, page_chunks)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO documents (document_id, title, text, path, genre_tags, page_chunks, document_role)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     document_id,
@@ -164,6 +172,7 @@ class DocumentStore:
                     str(pdf_path.relative_to(self.base_dir)),
                     json.dumps(normalized_genres),
                     json.dumps(page_chunks or [text]),
+                    role,
                 ),
             )
             connection.commit()
@@ -173,7 +182,7 @@ class DocumentStore:
     def list_documents(self) -> List[Dict[str, str]]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT document_id, title, text, genre_tags FROM documents ORDER BY created_at DESC, document_id DESC"
+                "SELECT document_id, title, text, genre_tags, document_role, page_chunks FROM documents ORDER BY created_at DESC, document_id DESC"
             ).fetchall()
 
         return [
@@ -182,9 +191,45 @@ class DocumentStore:
                 "title": row["title"],
                 "size": len(row["text"]),
                 "genres": _parse_genre_tags(row["genre_tags"]),
+                "role": row["document_role"],
+                "page_count": len(json.loads(row["page_chunks"] or "[]")) or 1,
             }
             for row in rows
         ]
+
+    def update_document_role(self, document_id: str, role: str) -> bool:
+        if role not in DOCUMENT_ROLES:
+            raise ValueError("Unknown PDF role")
+        with self._connect() as connection:
+            result = connection.execute("UPDATE documents SET document_role = ? WHERE document_id = ?", (role, document_id))
+            return result.rowcount > 0
+
+    def rules_document_ids(self, document_ids: List[str]) -> List[str]:
+        roles = {item["document_id"]: item["role"] for item in self.list_documents()}
+        return [document_id for document_id in document_ids if roles.get(document_id) in {"core_rules", "supplement"}]
+
+    def get_pages(self, document_id: str, start_page: int = 1, count: int = 3) -> List[Dict[str, object]]:
+        with self._connect() as connection:
+            row = connection.execute("SELECT title, text, page_chunks FROM documents WHERE document_id = ?", (document_id,)).fetchone()
+        if row is None:
+            raise KeyError("PDF not found")
+        pages = json.loads(row["page_chunks"] or "[]") or [row["text"]]
+        if start_page < 1 or start_page > len(pages) or count < 1 or count > 8:
+            raise ValueError("PDF page range is outside the document")
+        return [{"document_id": document_id, "title": row["title"], "page": index + 1, "text": str(pages[index])[:3000]}
+                for index in range(start_page - 1, min(len(pages), start_page - 1 + count))]
+
+    def storyteller_context(self, campaign, query: str) -> str:
+        documents = {item["document_id"]: item for item in self.list_documents()}
+        references = [document_id for document_id in campaign.source_document_ids
+                      if documents.get(document_id, {}).get("role") != "chronicle"]
+        snippets = self.retrieve_scoped(query, references, limit=4)
+        for snippet in snippets:
+            snippet["role"] = documents[snippet["document_id"]]["role"]
+        scenario = []
+        if campaign.chronicle_document_id and documents.get(campaign.chronicle_document_id, {}).get("role") == "chronicle":
+            scenario = self.get_pages(campaign.chronicle_document_id, campaign.chronicle_page)
+        return json.dumps({"role_labelled_references": snippets, "gm_only_chronicle_pages": scenario}, ensure_ascii=True)
 
     def update_document_genres(self, document_id: str, genres: List[str] | None) -> bool:
         normalized_genres = _normalize_genres(genres)

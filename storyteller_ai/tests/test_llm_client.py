@@ -261,6 +261,26 @@ def test_ollama_tool_request_maps_registered_schemas_and_tool_calls(monkeypatch)
     assert response.tool_calls[0].arguments == {"expression": "1d10", "reason": "test"}
 
 
+def test_ollama_structured_response_uses_json_schema_without_tools(monkeypatch):
+    from backend.models.tools import ToolSpec
+    monkeypatch.setattr(llm_client, "_get_llm_settings", lambda: {
+        "ollama_url": "http://127.0.0.1:11434", "ollama_model": "qwen3:4b",
+        "ollama_connect_timeout": "10", "ollama_read_timeout": "600",
+        "ollama_context_window": "8192", "ollama_max_output_tokens": "800", "ollama_think": "false",
+    })
+    recorded = {}
+    async def post(self, url, payload, connect_timeout, read_timeout):
+        recorded.update(payload)
+        return {"done_reason": "stop", "message": {"content": '{"recommendation":"approve"}'}}
+    monkeypatch.setattr(OllamaProvider, "_post_json", post)
+    schema = {"type": "object", "properties": {"recommendation": {"enum": ["approve", "reject"]}}}
+    response = asyncio.run(OllamaProvider().generate_with_tools([], [ToolSpec(name="review", description="Review", parameters=schema)], response_schema=schema))
+    assert recorded["format"] == schema
+    assert "tools" not in recorded
+    assert recorded["think"] is False
+    assert response.text == '{"recommendation":"approve"}'
+
+
 def test_ollama_malformed_tool_arguments_become_invalid_empty_object(monkeypatch):
     monkeypatch.setattr(llm_client, "_get_llm_settings", lambda: {
         "ollama_url": "http://127.0.0.1:11434",
